@@ -92,7 +92,7 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 	)
 
 	suspend fun findCovers(categoryId: Long, order: ListSortOrder): List<Cover> {
-		val orderBy = getOrderBy(order)
+		val orderBy = getOrderBy(order, isGrouped = false)
 
 		@Language("RoomSql")
 		val query = SimpleSQLiteQuery(
@@ -214,7 +214,28 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 	@Query("UPDATE favourites SET deleted_at = :deletedAt WHERE category_id = :categoryId AND deleted_at = 0")
 	protected abstract suspend fun setDeletedAtAll(categoryId: Long, deletedAt: Long)
 
-	private fun getOrderBy(sortOrder: ListSortOrder) = when (sortOrder) {
+	@Query("UPDATE favourites SET pinned = :isPinned WHERE manga_id = :mangaId AND category_id = :categoryId AND deleted_at = 0")
+	abstract suspend fun setPinned(mangaId: Long, categoryId: Long, isPinned: Boolean)
+
+	@Query("UPDATE favourites SET pinned = :isPinned WHERE manga_id = :mangaId AND deleted_at = 0")
+	abstract suspend fun setPinned(mangaId: Long, isPinned: Boolean)
+
+	@Query("SELECT DISTINCT manga_id FROM favourites WHERE category_id = :categoryId AND pinned = 1 AND deleted_at = 0")
+	abstract suspend fun findPinnedIds(categoryId: Long): List<Long>
+
+	@Query("SELECT DISTINCT manga_id FROM favourites WHERE pinned = 1 AND deleted_at = 0")
+	abstract suspend fun findAllPinnedIds(): List<Long>
+
+	/**
+	 * Pinned entries always come first. Queries grouped by manga (one row per category) sort on
+	 * MAX(pinned), so an entry pinned in any of its categories is consistently treated as pinned
+	 * instead of depending on which row SQLite happens to pick for the group.
+	 */
+	private fun getOrderBy(sortOrder: ListSortOrder, isGrouped: Boolean = true) = (if (isGrouped) {
+		"MAX(favourites.pinned) DESC, "
+	} else {
+		"favourites.pinned DESC, "
+	}) + when (sortOrder) {
 		ListSortOrder.RATING -> "manga.rating DESC"
 		ListSortOrder.NEWEST -> "favourites.created_at DESC"
 		ListSortOrder.OLDEST -> "favourites.created_at ASC"
