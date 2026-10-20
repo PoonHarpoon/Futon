@@ -110,6 +110,15 @@ class FavouritesListViewModel @Inject constructor(
 		}
 	}
 
+	fun setPinned(ids: Set<Long>, isPinned: Boolean) {
+		if (ids.isEmpty()) {
+			return
+		}
+		launchJob(Dispatchers.IO) {
+			repository.setPinned(ids, categoryId, isPinned)
+		}
+	}
+
 	fun removeFromFavourites(ids: Set<Long>) {
 		if (ids.isEmpty()) {
 			return
@@ -147,9 +156,10 @@ class FavouritesListViewModel @Inject constructor(
 				listOfNotNull(quickFilter.filterItem(filters), getEmptyState(hasFilters = true))
 			}
 		}
+		val pinnedIds = repository.getPinnedIds(categoryId)
 		val result = ArrayList<ListModel>(size + 1)
 		quickFilter.filterItem(filters)?.let(result::add)
-		mangaListMapper.toListModelList(result, this, mode, MangaListMapper.NO_FAVORITE)
+		mangaListMapper.toListModelList(result, this, mode, MangaListMapper.NO_FAVORITE, pinnedIds)
 		return result
 	}
 
