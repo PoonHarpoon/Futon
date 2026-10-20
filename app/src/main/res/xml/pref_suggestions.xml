@@ -5,7 +5,7 @@
 	android:title="@string/suggestions">
 
 	<SwitchPreferenceCompat
-		android:defaultValue="false"
+		android:defaultValue="true"
 		android:key="suggestions"
 		android:layout="@layout/preference_toggle_header"
 		android:title="@string/suggestions_enable" />
