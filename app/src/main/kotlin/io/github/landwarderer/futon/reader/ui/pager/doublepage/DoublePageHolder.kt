@@ -3,6 +3,8 @@ package io.github.landwarderer.futon.reader.ui.pager.doublepage
 import android.graphics.PointF
 import android.view.Gravity
 import android.widget.FrameLayout
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
 import androidx.lifecycle.LifecycleOwner
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import io.github.landwarderer.futon.core.exceptions.resolve.ExceptionResolver
@@ -36,10 +38,36 @@ class DoublePageHolder(
 		binding.ssiv.panLimit = SubsamplingScaleImageView.PAN_LIMIT_INSIDE
 	}
 
+	private var isSpacer = false
+
 	override fun onBind(data: ReaderPage) {
 		super.onBind(data)
+		isSpacer = false
+		binding.ssiv.isVisible = true
+		binding.textViewNumber.isVisible = settings.isPagesNumbersEnabled
 		(binding.textViewNumber.layoutParams as FrameLayout.LayoutParams)
 			.gravity = (if (isEven) Gravity.START else Gravity.END) or Gravity.BOTTOM
+	}
+
+	/**
+	 * Display a blank page, used to pad chapters so that two chapters never share a spread
+	 */
+	fun bindSpacer() {
+		isSpacer = true
+		viewModel.onRecycle()
+		binding.ssiv.recycle()
+		binding.ssiv.isVisible = false
+		binding.textViewNumber.isVisible = false
+		bindingInfo.layoutProgress.isGone = true
+		bindingInfo.layoutError.isVisible = false
+		settings.applyBackground(itemView)
+	}
+
+	override fun onConfigChanged(settings: ReaderSettings) {
+		super.onConfigChanged(settings)
+		if (isSpacer) {
+			binding.textViewNumber.isVisible = false
+		}
 	}
 
 	override fun onReady() {
