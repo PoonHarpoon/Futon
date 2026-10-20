@@ -2,8 +2,6 @@ package io.github.landwarderer.futon.sync.domain
 
 import android.accounts.Account
 import android.accounts.AccountManager
-import android.accounts.AccountManagerCallback
-import android.app.Activity
 import android.content.ContentResolver
 import android.content.ContentResolver.SYNC_OBSERVER_TYPE_ACTIVE
 import android.content.Context
@@ -25,8 +23,6 @@ import io.github.landwarderer.futon.core.db.MangaDatabase
 import io.github.landwarderer.futon.core.db.TABLE_FAVOURITES
 import io.github.landwarderer.futon.core.db.TABLE_FAVOURITE_CATEGORIES
 import io.github.landwarderer.futon.core.db.TABLE_HISTORY
-import io.github.landwarderer.futon.core.util.ext.printStackTraceDebug
-import io.github.landwarderer.futon.core.prefs.AppSettings
 import io.github.landwarderer.futon.core.util.ext.processLifecycleScope
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -37,7 +33,6 @@ import javax.inject.Singleton
 class SyncController @Inject constructor(
 	@ApplicationContext context: Context,
 	private val dbProvider: Provider<MangaDatabase>,
-	private val settings: AppSettings,
 ) : InvalidationTracker.Observer(arrayOf(TABLE_HISTORY, TABLE_FAVOURITES, TABLE_FAVOURITE_CATEGORIES)) {
 
 	private val authorityHistory = context.getString(R.string.sync_authority_history)
@@ -56,72 +51,6 @@ class SyncController @Inject constructor(
 		}
 	}
 
-	/**
-	 * Starts the system "add account" flow. On a successful login favourites and history sync are
-	 * turned on and a full sync is requested, so the new account is usable right away.
-	 */
-	fun addAccount(activity: Activity, callback: (account: Account?) -> Unit) {
-		val handler = AccountManagerCallback<Bundle> { future ->
-			val addedName = runCatching {
-				future.result.getString(AccountManager.KEY_ACCOUNT_NAME)
-			}.onFailure {
-				it.printStackTraceDebug("SyncController::addAccount")
-			}.getOrNull()
-			val account = peekAccount()
-			if (account != null && account.name == addedName) {
-				setEnabled(account, syncFavorites = true, syncHistory = true)
-				processLifecycleScope.launch(Dispatchers.IO) {
-					requestFullSync()
-				}
-			}
-			callback(account)
-		}
-		am.addAccount(accountType, accountType, null, null, activity, handler, null)
-	}
-
-	fun removeAccount(activity: Activity, account: Account, callback: (account: Account?) -> Unit) {
-		val handler = AccountManagerCallback<Bundle> { future ->
-			runCatching {
-				future.result
-			}.onFailure {
-				it.printStackTraceDebug("SyncController::removeAccount")
-			}
-			callback(peekAccount())
-		}
-		am.removeAccount(account, activity, handler, null)
-	}
-
-	fun setEnabled(account: Account, syncFavorites: Boolean, syncHistory: Boolean) {
-		ContentResolver.setSyncAutomatically(account, authorityFavourites, syncFavorites)
-		ContentResolver.setSyncAutomatically(account, authorityHistory, syncHistory)
-	}
-
-	/**
-	 * Brings the registered periodic syncs in line with the current settings.
-	 *
-	 * Idempotent, and safe to call with no account. Needed on startup as well as on a settings change:
-	 * periodic syncs live in the system, not in the app, so an account added before this setting existed
-	 * would otherwise never get one.
-	 *
-	 * Without this the app only ever syncs when it writes to a synced table, so changes made on another
-	 * device never arrive until something changes locally. The period is a hint: the system batches
-	 * periodic syncs with other work and defers them under Doze. The system also skips them while
-	 * auto-sync is off for an authority, so they are registered for both authorities regardless.
-	 */
-	fun updateSyncSchedule() {
-		val account = peekAccount() ?: return
-		val periodSeconds = TimeUnit.HOURS.toSeconds(settings.syncPeriodHours.toLong())
-		for (authority in arrayOf(authorityFavourites, authorityHistory)) {
-			// A fresh Bundle rather than Bundle.EMPTY: periodic sync extras are retained by the system and
-			// matched on later. addPeriodicSync replaces an entry with matching extras, so this also updates.
-			if (periodSeconds > 0L) {
-				ContentResolver.addPeriodicSync(account, authority, Bundle(), periodSeconds)
-			} else {
-				ContentResolver.removePeriodicSync(account, authority, Bundle())
-			}
-		}
-	}
-
 	fun isEnabled(account: Account): Boolean {
 		return ContentResolver.getMasterSyncAutomatically() && (ContentResolver.getSyncAutomatically(
 			account,
@@ -130,16 +59,6 @@ class SyncController @Inject constructor(
 			account,
 			authorityHistory,
 		))
-	}
-
-	fun isFavouritesEnabled(account: Account): Boolean {
-		return ContentResolver.getMasterSyncAutomatically() &&
-			ContentResolver.getSyncAutomatically(account, authorityFavourites)
-	}
-
-	fun isHistoryEnabled(account: Account): Boolean {
-		return ContentResolver.getMasterSyncAutomatically() &&
-			ContentResolver.getSyncAutomatically(account, authorityHistory)
 	}
 
 	fun getLastSync(account: Account, authority: String): Long {

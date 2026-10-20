@@ -1,5 +1,6 @@
 package io.github.landwarderer.futon.main.ui.welcome
 
+import android.accounts.AccountManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -27,7 +28,6 @@ import io.github.landwarderer.futon.core.util.ext.observe
 import io.github.landwarderer.futon.core.util.ext.tryLaunch
 import io.github.landwarderer.futon.databinding.SheetWelcomeBinding
 import io.github.landwarderer.futon.filter.ui.model.FilterProperty
-import io.github.landwarderer.futon.sync.domain.SyncController
 import org.koitharu.kotatsu.parsers.model.ContentType
 import java.util.Locale
 
@@ -37,9 +37,6 @@ class WelcomeSheet : BaseAdaptiveSheet<SheetWelcomeBinding>(), ChipsView.OnChipC
 
 	@Inject
 	lateinit var settings: AppSettings
-
-	@Inject
-	lateinit var syncController: SyncController
 
 	private val viewModel by viewModels<WelcomeViewModel>()
 
@@ -95,7 +92,9 @@ class WelcomeSheet : BaseAdaptiveSheet<SheetWelcomeBinding>(), ChipsView.OnChipC
 			}
 
 			R.id.chip_sync -> {
-				syncController.addAccount(requireActivity()) {}
+				val am = AccountManager.get(v.context)
+				val accountType = getString(R.string.account_type_sync)
+				am.addAccount(accountType, accountType, null, null, requireActivity(), null, null)
 			}
 
             R.id.chip_directories -> {

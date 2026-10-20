@@ -1,5 +1,6 @@
 package io.github.landwarderer.futon.settings
 
+import android.accounts.AccountManager
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.View
@@ -17,6 +18,7 @@ import io.github.landwarderer.futon.core.util.ext.viewLifecycleScope
 import io.github.landwarderer.futon.scrobbling.common.domain.model.ScrobblerService
 import io.github.landwarderer.futon.scrobbling.common.ui.ScrobblerAuthHelper
 import io.github.landwarderer.futon.settings.utils.SplitSwitchPreference
+import io.github.landwarderer.futon.sync.domain.SyncController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -25,6 +27,9 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class ServicesSettingsFragment : BasePreferenceFragment(R.string.services),
 	SharedPreferences.OnSharedPreferenceChangeListener {
+
+	@Inject
+	lateinit var syncController: SyncController
 
 	@Inject
 	lateinit var scrobblerAuthHelper: ScrobblerAuthHelper
@@ -57,6 +62,7 @@ class ServicesSettingsFragment : BasePreferenceFragment(R.string.services),
 		bindScrobblerSummary(AppSettings.KEY_ANILIST, ScrobblerService.ANILIST)
 		bindScrobblerSummary(AppSettings.KEY_MAL, ScrobblerService.MAL)
 		bindScrobblerSummary(AppSettings.KEY_KITSU, ScrobblerService.KITSU)
+		bindSyncSummary()
 	}
 
 	override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
@@ -86,6 +92,20 @@ class ServicesSettingsFragment : BasePreferenceFragment(R.string.services),
 
 			AppSettings.KEY_KITSU -> {
 				handleScrobblerClick(ScrobblerService.KITSU)
+				true
+			}
+
+			AppSettings.KEY_SYNC -> {
+				val am = AccountManager.get(requireContext())
+				val accountType = getString(R.string.account_type_sync)
+				val account = am.getAccountsByType(accountType).firstOrNull()
+				if (account == null) {
+					am.addAccount(accountType, accountType, null, null, requireActivity(), null, null)
+				} else {
+					if (!router.openSystemSyncSettings(account)) {
+						Snackbar.make(listView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
+					}
+				}
 				true
 			}
 
@@ -126,6 +146,23 @@ class ServicesSettingsFragment : BasePreferenceFragment(R.string.services),
 			confirmScrobblerAuth(scrobblerService)
 		} else {
 			router.openScrobblerSettings(scrobblerService)
+		}
+	}
+
+	private fun bindSyncSummary() {
+		viewLifecycleScope.launch {
+			val account = withContext(Dispatchers.IO) {
+				val type = getString(R.string.account_type_sync)
+				AccountManager.get(requireContext()).getAccountsByType(type).firstOrNull()
+			}
+			findPreference<Preference>(AppSettings.KEY_SYNC)?.run {
+				summary = when {
+					account == null -> getString(R.string.sync_title)
+					syncController.isEnabled(account) -> account.name
+					else -> getString(R.string.disabled)
+				}
+			}
+			findPreference<Preference>(AppSettings.KEY_SYNC_SETTINGS)?.isEnabled = account != null
 		}
 	}
 

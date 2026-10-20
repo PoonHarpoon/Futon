@@ -7,7 +7,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import io.github.landwarderer.futon.R
-import io.github.landwarderer.futon.core.exceptions.SyncApiException
 import io.github.landwarderer.futon.core.ui.BaseViewModel
 import io.github.landwarderer.futon.core.util.ext.MutableEventFlow
 import io.github.landwarderer.futon.core.util.ext.call
@@ -23,8 +22,6 @@ class SyncAuthViewModel @Inject constructor(
 
 	val onAccountAlreadyExists = MutableEventFlow<Unit>()
 	val onTokenObtained = MutableEventFlow<SyncAuthResult>()
-	val onPasswordResetRequested = MutableEventFlow<Unit>()
-	private val resetUnsupportedMessage = context.getString(R.string.sync_password_reset_unsupported)
 	val syncURL = MutableStateFlow(context.resources.getStringArray(R.array.sync_url_list).first())
 
 	init {
@@ -44,27 +41,5 @@ class SyncAuthViewModel @Inject constructor(
 			val result = SyncAuthResult(syncURL.value, email, password, token)
 			onTokenObtained.call(result)
 		}
-	}
-
-	fun forgotPassword(email: String) {
-		val urlValue = syncURL.value
-		launchLoadingJob(Dispatchers.IO) {
-			try {
-				api.forgotPassword(urlValue, email)
-			} catch (e: SyncApiException) {
-				throw if (e.code in UNSUPPORTED_CODES) {
-					SyncApiException(resetUnsupportedMessage, e.code)
-				} else {
-					e
-				}
-			}
-			onPasswordResetRequested.call(Unit)
-		}
-	}
-
-	private companion object {
-
-		/** What a server without the password reset endpoints answers with */
-		val UNSUPPORTED_CODES = intArrayOf(404, 405, 501)
 	}
 }
