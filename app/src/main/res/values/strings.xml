@@ -981,4 +981,5 @@
     <string name="flash_every">Flash every</string>
     <string name="flash_with">Flash with</string>
     <string name="milliseconds_pattern">%1$d ms</string>
+    <string name="recently_read_manga">Recently read manga</string>
 </resources>
