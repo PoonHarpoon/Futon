@@ -2,6 +2,7 @@ package io.github.landwarderer.futon.reader.ui.pager.doublepage
 
 import android.graphics.PointF
 import android.view.Gravity
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
@@ -43,6 +44,7 @@ class DoublePageHolder(
 	override fun onBind(data: ReaderPage) {
 		super.onBind(data)
 		isSpacer = false
+		resetTransformations()
 		binding.ssiv.isVisible = true
 		binding.textViewNumber.isVisible = settings.isPagesNumbersEnabled
 		(binding.textViewNumber.layoutParams as FrameLayout.LayoutParams)
@@ -56,6 +58,7 @@ class DoublePageHolder(
 		isSpacer = true
 		viewModel.onRecycle()
 		binding.ssiv.recycle()
+		resetTransformations()
 		binding.ssiv.isVisible = false
 		binding.textViewNumber.isVisible = false
 		bindingInfo.layoutProgress.isGone = true
@@ -72,16 +75,56 @@ class DoublePageHolder(
 
 	override fun onReady() {
 		with(binding.ssiv) {
-			maxScale = 2f * maxOf(
-				width / sWidth.toFloat(),
-				height / sHeight.toFloat(),
-			)
-			binding.ssiv.colorFilter = settings.colorFilter?.toColorFilter()
+			colorFilter = settings.colorFilter?.toColorFilter()
 			minimumScaleType = SubsamplingScaleImageView.SCALE_TYPE_CENTER_INSIDE
+			// no per-page zoom: the whole spread is zoomed by DoublePageScalingFrame
+			maxScale = minScale
 			setScaleAndCenter(
 				minScale,
-				PointF(if (isEven) 0f else sWidth.toFloat(), sHeight / 2f),
+				PointF(sWidth / 2f, sHeight / 2f),
 			)
+			if (sWidth.toFloat() / sHeight > WIDE_IMAGE_RATIO) {
+				// wide image: scale it up to fit the whole spread
+				val containerWidth = width.toFloat()
+				val parent = itemView.parent as? ViewGroup
+				val fullWidth = parent?.width?.toFloat() ?: (containerWidth * 2f)
+				val fullHeight = parent?.height?.toFloat() ?: height.toFloat()
+				val fitScale = minOf(fullWidth / sWidth, fullHeight / sHeight)
+				val ratio = (fitScale / minScale).coerceAtLeast(1f)
+				scaleX = ratio
+				scaleY = ratio
+				translationX = if (isEven) containerWidth / 2f else -containerWidth / 2f
+				settings.applyBackground(this)
+				itemView.translationZ = 1f
+				(itemView as? ViewGroup)?.clipChildren = false
+			} else {
+				// regular page: push it toward the other page of the spread
+				scaleX = 1f
+				scaleY = 1f
+				background = null
+				itemView.translationZ = 0f
+				val offset = (width - sWidth * minScale) / 2f
+				translationX = when {
+					offset <= 0f -> 0f
+					isEven -> offset
+					else -> -offset
+				}
+			}
 		}
+	}
+
+	private fun resetTransformations() {
+		with(binding.ssiv) {
+			scaleX = 1f
+			scaleY = 1f
+			translationX = 0f
+			background = null
+		}
+		itemView.translationZ = 0f
+	}
+
+	private companion object {
+
+		const val WIDE_IMAGE_RATIO = 1.3f
 	}
 }
