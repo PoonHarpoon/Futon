@@ -871,6 +871,10 @@
     <string name="manga_override_hint">These changes will affect how manga is displayed in the app</string>
     <string name="use_default_cover">Use default cover</string>
     <string name="pick_manga_page">Pick manga page</string>
+    <string name="alternative_covers">Covers from other sources</string>
+    <string name="current_cover">Current cover</string>
+    <string name="use_this_cover">Use this cover</string>
+    <string name="no_alternative_covers">No other covers found for this title</string>
     <string name="pick_custom_file">Pick custom file</string>
     <string name="change_cover">Change cover</string>
     <string name="page_switch_timer">The page will switch every ~%d seconds</string>
