@@ -40,10 +40,20 @@ class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig 
 	 * an inconsistent (e.g. hard-coded desktop) agent in `getRequestHeaders()` would otherwise stay
 	 * blocked no matter how many times the challenge is solved. Set by the solver, applied by
 	 * `CommonHeadersInterceptor`; null means the parser's own agent is fine.
+	 *
+	 * Recorded together with the user's own User-Agent setting at that moment: once the user changes
+	 * that setting, their choice wins again and the stored agent is ignored until the next solve.
 	 */
 	var cloudFlareUserAgent: String?
-		get() = prefs.getString(KEY_CF_USER_AGENT, null)?.nullIfEmpty()
-		set(value) = prefs.edit { putString(KEY_CF_USER_AGENT, value?.sanitizeHeaderValue()) }
+		get() {
+			val value = prefs.getString(KEY_CF_USER_AGENT, null)?.nullIfEmpty() ?: return null
+			val base = prefs.getString(KEY_CF_USER_AGENT_BASE, null).orEmpty()
+			return value.takeIf { base == prefs.getString(KEY_USER_AGENT, null).orEmpty() }
+		}
+		set(value) = prefs.edit {
+			putString(KEY_CF_USER_AGENT, value?.sanitizeHeaderValue())
+			putString(KEY_CF_USER_AGENT_BASE, prefs.getString(KEY_USER_AGENT, null).orEmpty())
+		}
 
 	@Suppress("UNCHECKED_CAST")
 	override fun <T> get(key: ConfigKey<T>): T {
@@ -94,5 +104,7 @@ class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig 
 		const val KEY_SLOWDOWN = "slowdown"
 		const val KEY_SORT_ORDER = "sort_order"
 		const val KEY_CF_USER_AGENT = "cf_user_agent"
+		const val KEY_CF_USER_AGENT_BASE = "cf_user_agent_base"
+		private const val KEY_USER_AGENT = "user_agent" // ConfigKey.UserAgent
 	}
 }
