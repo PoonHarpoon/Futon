@@ -965,4 +965,9 @@
     <string name="download_only_on_charging_summary">Connect to a power source to start downloads</string>
     <string name="error_quota_too_low">Storage quota cannot be lower than current usage</string>
     <string name="download_quota_reached">Storage quota reached. Downloads paused.</string>
+    <string name="manga_unavailable_title">Content unavailable</string>
+    <string name="manga_unavailable_message">\"%1$s\" could not be loaded from %2$s. It may have been removed or moved to another address.</string>
+    <string name="manga_unavailable_message_no_source">\"%1$s\" could not be loaded. It may have been removed or moved to another address.</string>
+    <string name="manga_unavailable_search_alternatives">Find on other sources</string>
+    <string name="manga_unavailable_hint">Alternatives searches the other enabled sources for the same title, so you can carry on reading where you left off.</string>
 </resources>
