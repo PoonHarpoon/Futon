@@ -52,18 +52,25 @@ class CheckNewChaptersUseCase @Inject constructor(
 			val branch = checkNotNull(details.chapters?.findById(currentChapterId)).branch
 			val chapters = details.getChapters(branch)
 			val chapterIndex = chapters.indexOfFirst { x -> x.id == currentChapterId }
-			val lastNewChapterIndex = chapters.size - track.newChapters
 			val lastChapter = chapters.lastOrNull()
+			// Credit chapters that appeared since the previously tracked last chapter.
+			// Without this, opening the reader on an older chapter while a release
+			// dropped in the meantime would advance lastChapterId past the unseen
+			// chapter without ever flagging it as new, hiding it from the Updates tab.
+			val prevLastIndex = chapters.indexOfFirst { it.id == track.lastChapterId }
+			val addedSinceLastTrack = if (prevLastIndex >= 0) chapters.lastIndex - prevLastIndex else 0
+			val effectiveNew = track.newChapters + addedSinceLastTrack
+			val lastNewChapterIndex = chapters.size - effectiveNew
 			val tracking = MangaTracking(
 				manga = details,
 				lastChapterId = lastChapter?.id ?: 0L,
 				lastCheck = Instant.now(),
 				lastChapterDate = lastChapter?.uploadDate?.toInstantOrNull() ?: track.lastChapterDate,
 				newChapters = when {
-					track.newChapters == 0 -> 0
-					chapterIndex < 0 -> track.newChapters
+					effectiveNew == 0 -> 0
+					chapterIndex < 0 -> effectiveNew
 					chapterIndex >= lastNewChapterIndex -> chapters.lastIndex - chapterIndex
-					else -> track.newChapters
+					else -> effectiveNew
 				},
 			)
 			repository.mergeWith(tracking)
