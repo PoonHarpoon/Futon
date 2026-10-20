@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen
-	xmlns:android="http://schemas.android.com/apk/res/android">
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto">
 
 	<Preference
 		android:key="host"
 		android:title="@string/server_address" />
+
+	<!-- Entries are filled in by SyncSettingsFragment from AppSettings.SYNC_PERIODS -->
+	<ListPreference
+		android:defaultValue="6"
+		android:key="sync_period"
+		android:title="@string/frequency_of_check"
+		app:useSimpleSummaryProvider="true" />
 
 </PreferenceScreen>

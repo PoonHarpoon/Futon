@@ -23,6 +23,7 @@ import io.github.landwarderer.futon.core.db.MangaDatabase
 import io.github.landwarderer.futon.core.db.TABLE_FAVOURITES
 import io.github.landwarderer.futon.core.db.TABLE_FAVOURITE_CATEGORIES
 import io.github.landwarderer.futon.core.db.TABLE_HISTORY
+import io.github.landwarderer.futon.core.prefs.AppSettings
 import io.github.landwarderer.futon.core.util.ext.processLifecycleScope
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -33,6 +34,7 @@ import javax.inject.Singleton
 class SyncController @Inject constructor(
 	@ApplicationContext context: Context,
 	private val dbProvider: Provider<MangaDatabase>,
+	private val settings: AppSettings,
 ) : InvalidationTracker.Observer(arrayOf(TABLE_HISTORY, TABLE_FAVOURITES, TABLE_FAVOURITE_CATEGORIES)) {
 
 	private val authorityHistory = context.getString(R.string.sync_authority_history)
@@ -48,6 +50,32 @@ class SyncController @Inject constructor(
 		val history = TABLE_HISTORY in tables && !isSyncActiveOrPending(authorityHistory)
 		if (favourites || history) {
 			requestSync(favourites, history)
+		}
+	}
+
+	/**
+	 * Brings the registered periodic syncs in line with the current settings.
+	 *
+	 * Idempotent, and safe to call with no account. Needed on startup as well as on a settings change:
+	 * periodic syncs live in the system, not in the app, so an account added before this setting existed
+	 * would otherwise never get one.
+	 *
+	 * Without this the app only ever syncs when it writes to a synced table, so changes made on another
+	 * device never arrive until something changes locally. The period is a hint: the system batches
+	 * periodic syncs with other work and defers them under Doze. The system also skips them while
+	 * auto-sync is off for an authority, so they are registered for both authorities regardless.
+	 */
+	fun updateSyncSchedule() {
+		val account = peekAccount() ?: return
+		val periodSeconds = TimeUnit.HOURS.toSeconds(settings.syncPeriodHours.toLong())
+		for (authority in arrayOf(authorityFavourites, authorityHistory)) {
+			// A fresh Bundle rather than Bundle.EMPTY: periodic sync extras are retained by the system and
+			// matched on later. addPeriodicSync replaces an entry with matching extras, so this also updates.
+			if (periodSeconds > 0L) {
+				ContentResolver.addPeriodicSync(account, authority, Bundle(), periodSeconds)
+			} else {
+				ContentResolver.removePeriodicSync(account, authority, Bundle())
+			}
 		}
 	}
 

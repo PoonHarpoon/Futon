@@ -3,10 +3,13 @@ package io.github.landwarderer.futon.settings
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.FragmentResultListener
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.landwarderer.futon.R
+import io.github.landwarderer.futon.core.prefs.AppSettings
 import io.github.landwarderer.futon.core.ui.BasePreferenceFragment
+import io.github.landwarderer.futon.core.util.ext.getQuantityStringSafe
 import io.github.landwarderer.futon.sync.data.SyncSettings
 import io.github.landwarderer.futon.sync.ui.SyncHostDialogFragment
 import javax.inject.Inject
@@ -20,6 +23,21 @@ class SyncSettingsFragment : BasePreferenceFragment(R.string.sync_settings), Fra
 	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
 		addPreferencesFromResource(R.xml.pref_sync)
 		bindHostSummary()
+		bindSyncPeriodEntries()
+	}
+
+	private fun bindSyncPeriodEntries() {
+		val preference = findPreference<ListPreference>(AppSettings.KEY_SYNC_PERIOD) ?: return
+		val periods = AppSettings.SYNC_PERIODS
+		preference.entryValues = Array(periods.size) { periods[it].toString() }
+		preference.entries = Array(periods.size) { i ->
+			val hours = periods[i]
+			if (hours == 0) {
+				getString(R.string.disabled)
+			} else {
+				resources.getQuantityStringSafe(R.plurals.hours, hours, hours)
+			}
+		}
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

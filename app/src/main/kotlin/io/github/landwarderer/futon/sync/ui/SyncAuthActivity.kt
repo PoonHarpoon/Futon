@@ -32,6 +32,8 @@ import io.github.landwarderer.futon.core.util.ext.systemBarsInsets
 import io.github.landwarderer.futon.databinding.ActivitySyncAuthBinding
 import io.github.landwarderer.futon.sync.data.SyncSettings
 import io.github.landwarderer.futon.sync.domain.SyncAuthResult
+import io.github.landwarderer.futon.sync.domain.SyncController
+import javax.inject.Inject
 
 private const val PAGE_EMAIL = 0
 private const val PAGE_PASSWORD = 1
@@ -48,6 +50,9 @@ class SyncAuthActivity : BaseActivity<ActivitySyncAuthBinding>(), View.OnClickLi
 	private val regexEmail = Regex("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,6}$", RegexOption.IGNORE_CASE)
 
 	private val viewModel by viewModels<SyncAuthViewModel>()
+
+	@Inject
+	lateinit var syncController: SyncController
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -195,6 +200,7 @@ class SyncAuthActivity : BaseActivity<ActivitySyncAuthBinding>(), View.OnClickLi
 			result.putString(AccountManager.KEY_ACCOUNT_TYPE, account.type)
 			result.putString(AccountManager.KEY_AUTHTOKEN, authResult.token)
 			am.setAuthToken(account, account.type, authResult.token)
+			syncController.updateSyncSchedule()
 		} else {
 			result.putString(AccountManager.KEY_ERROR_MESSAGE, getString(R.string.account_already_exists))
 		}

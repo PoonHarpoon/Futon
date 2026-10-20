@@ -6,6 +6,7 @@ import io.github.landwarderer.futon.core.util.ext.processLifecycleScope
 import io.github.landwarderer.futon.download.ui.worker.DownloadSchedulerWorker
 import io.github.landwarderer.futon.download.ui.worker.DownloadWorker
 import io.github.landwarderer.futon.suggestions.ui.SuggestionsWorker
+import io.github.landwarderer.futon.sync.domain.SyncController
 import io.github.landwarderer.futon.tracker.work.TrackWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -18,6 +19,7 @@ class WorkScheduleManager @Inject constructor(
 	private val suggestionScheduler: SuggestionsWorker.Scheduler,
 	private val trackerScheduler: TrackWorker.Scheduler,
 	private val downloadScheduler: DownloadWorker.Scheduler,
+	private val syncController: SyncController,
 ) : SharedPreferences.OnSharedPreferenceChangeListener {
 
 	override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -42,6 +44,8 @@ class WorkScheduleManager @Inject constructor(
 			AppSettings.KEY_DOWNLOAD_OFF_PEAK_END -> {
 				DownloadSchedulerWorker.scheduleAlarm(downloadScheduler.workManager, settings)
 			}
+
+			AppSettings.KEY_SYNC_PERIOD -> syncController.updateSyncSchedule()
 		}
 	}
 
@@ -51,6 +55,9 @@ class WorkScheduleManager @Inject constructor(
 			updateWorkerImpl(trackerScheduler, settings.isTrackerEnabled, true) // always force due to adaptive interval
 			updateWorkerImpl(suggestionScheduler, settings.isSuggestionsEnabled, false)
 			DownloadSchedulerWorker.scheduleAlarm(downloadScheduler.workManager, settings)
+			// Periodic syncs are registered with the system rather than WorkManager, so they have to be
+			// re-asserted here for accounts added before this setting existed.
+			syncController.updateSyncSchedule()
 		}
 	}
 
