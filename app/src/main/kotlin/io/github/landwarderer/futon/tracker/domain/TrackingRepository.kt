@@ -77,20 +77,35 @@ class TrackingRepository @Inject constructor(
 	}
 
 	suspend fun getTracks(offset: Int, limit: Int): List<MangaTracking> {
-		return db.getTracksDao().findAll(offset = offset, limit = limit)
-			.filter { track ->
-				val manga = track.manga.toManga(emptySet(), null)
-				!isUpdateCheckingDisabled(manga)
+		// Tracks from sources with update checking disabled never get their last_check_time
+		// advanced, so they permanently sort to the front of the batch. Filtering them after
+		// the SQL LIMIT would let them occupy batch slots forever, starving the rest of the
+		// queue - page through until the requested amount of checkable tracks is collected.
+		val result = ArrayList<MangaTracking>(if (limit == Int.MAX_VALUE) 16 else limit)
+		var currentOffset = offset
+		while (result.size < limit) {
+			val window = db.getTracksDao().findAll(offset = currentOffset, limit = limit - result.size)
+			if (window.isEmpty()) {
+				break
 			}
-			.map {
-				MangaTracking(
-					manga = it.manga.toManga(emptySet(), null),
-					lastChapterId = it.track.lastChapterId,
-					lastCheck = it.track.lastCheckTime.toInstantOrNull(),
-					lastChapterDate = it.track.lastChapterDate.toInstantOrNull(),
-					newChapters = it.track.newChapters,
+			currentOffset += window.size
+			for (item in window) {
+				val manga = item.manga.toManga(emptySet(), null)
+				if (isUpdateCheckingDisabled(manga)) {
+					continue
+				}
+				result.add(
+					MangaTracking(
+						manga = manga,
+						lastChapterId = item.track.lastChapterId,
+						lastCheck = item.track.lastCheckTime.toInstantOrNull(),
+						lastChapterDate = item.track.lastChapterDate.toInstantOrNull(),
+						newChapters = item.track.newChapters,
+					),
 				)
 			}
+		}
+		return result
 	}
 
 	private fun isUpdateCheckingDisabled(manga: Manga): Boolean {
@@ -207,11 +222,15 @@ class TrackingRepository @Inject constructor(
 		dao.gc()
 		val ids = dao.findAllIds().toMutableSet()
 		val size = ids.size
+		// A manga can be tracked by both history and favourites: once the history pass has
+		// handled an id, the favourites pass must not touch it - recreating the row would
+		// wipe its baseline (lastChapterId), silently resetting the track on every run.
+		val handled = HashSet<Long>(size)
 		// history
 		if (AppSettings.TRACK_HISTORY in settings.trackSources) {
 			val historyIds = db.getHistoryDao().findAllIds()
 			for (mangaId in historyIds) {
-				if (!ids.remove(mangaId)) {
+				if (handled.add(mangaId) && !ids.remove(mangaId)) {
 					dao.upsert(TrackEntity.create(mangaId))
 				}
 			}
@@ -220,7 +239,7 @@ class TrackingRepository @Inject constructor(
 		if (AppSettings.TRACK_FAVOURITES in settings.trackSources) {
 			val favoritesIds = db.getFavouritesDao().findIdsWithTrack()
 			for (mangaId in favoritesIds) {
-				if (!ids.remove(mangaId)) {
+				if (handled.add(mangaId) && !ids.remove(mangaId)) {
 					dao.upsert(TrackEntity.create(mangaId))
 				}
 			}
