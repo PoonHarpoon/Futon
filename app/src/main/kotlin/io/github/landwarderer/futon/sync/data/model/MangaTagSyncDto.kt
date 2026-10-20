@@ -4,6 +4,7 @@ import android.database.Cursor
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import io.github.landwarderer.futon.core.util.ext.buildContentValues
+import io.github.landwarderer.futon.core.util.ext.getBoolean
 
 @Serializable
 data class MangaTagSyncDto(
@@ -11,6 +12,7 @@ data class MangaTagSyncDto(
 	@SerialName("title") val title: String,
 	@SerialName("key") val key: String,
 	@SerialName("source") val source: String,
+	@SerialName("pinned") val pinned: Boolean = false,
 ) {
 
 	constructor(cursor: Cursor) : this(
@@ -18,12 +20,14 @@ data class MangaTagSyncDto(
 		title = cursor.getString(cursor.getColumnIndexOrThrow("title")),
 		key = cursor.getString(cursor.getColumnIndexOrThrow("key")),
 		source = cursor.getString(cursor.getColumnIndexOrThrow("source")),
+		pinned = cursor.getBoolean(cursor.getColumnIndexOrThrow("pinned")),
 	)
 
-	fun toContentValues() = buildContentValues(4) {
+	fun toContentValues() = buildContentValues(5) {
 		put("tag_id", id)
 		put("title", title)
 		put("key", key)
 		put("source", source)
+		put("pinned", pinned)
 	}
 }
