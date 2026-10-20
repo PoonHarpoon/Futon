@@ -5,7 +5,6 @@ import androidx.core.database.getStringOrNull
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import io.github.landwarderer.futon.core.util.ext.buildContentValues
-import io.github.landwarderer.futon.core.util.ext.getBoolean
 
 @Serializable
 data class MangaSyncDto(
@@ -22,7 +21,6 @@ data class MangaSyncDto(
 	@SerialName("state") val state: String?,
 	@SerialName("author") val author: String?,
 	@SerialName("source") val source: String,
-	@SerialName("nsfw") val nsfw: Boolean = false,
 ) {
 
 	constructor(cursor: Cursor, tags: Set<MangaTagSyncDto>) : this(
@@ -39,10 +37,9 @@ data class MangaSyncDto(
 		state = cursor.getStringOrNull(cursor.getColumnIndexOrThrow("state")),
 		author = cursor.getStringOrNull(cursor.getColumnIndexOrThrow("author")),
 		source = cursor.getString(cursor.getColumnIndexOrThrow("source")),
-		nsfw = cursor.getBoolean(cursor.getColumnIndexOrThrow("nsfw")),
 	)
 
-	fun toContentValues() = buildContentValues(13) {
+	fun toContentValues() = buildContentValues(12) {
 		put("manga_id", id)
 		put("title", title)
 		put("alt_title", altTitle)
@@ -55,6 +52,5 @@ data class MangaSyncDto(
 		put("state", state)
 		put("author", author)
 		put("source", source)
-		put("nsfw", nsfw)
 	}
 }
