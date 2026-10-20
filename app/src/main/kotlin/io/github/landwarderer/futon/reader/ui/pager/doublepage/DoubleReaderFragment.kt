@@ -62,6 +62,8 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 	) {
 		super.onViewBindingCreated(binding, savedInstanceState)
 		with(binding.recyclerView) {
+			clipChildren = false
+			clipToPadding = false
 			adapter = readerAdapter
 			recyclerLifecycleDispatcher = RecyclerViewLifecycleDispatcher().also {
 				addOnScrollListener(it)
@@ -129,13 +131,11 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 	)
 
 	override fun onZoomIn() {
-		(viewBinding ?: return).recyclerView.visiblePageHolders()
-			.forEach { it.onZoomIn() }
+		viewBinding?.frame?.onZoomIn()
 	}
 
 	override fun onZoomOut() {
-		(viewBinding ?: return).recyclerView.visiblePageHolders()
-			.forEach { it.onZoomOut() }
+		viewBinding?.frame?.onZoomOut()
 	}
 
 	override fun switchPageBy(delta: Int) {
