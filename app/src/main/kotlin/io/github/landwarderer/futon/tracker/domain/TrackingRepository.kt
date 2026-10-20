@@ -27,11 +27,13 @@ import io.github.landwarderer.futon.tracker.data.toTrackingLogItem
 import io.github.landwarderer.futon.tracker.domain.model.MangaTracking
 import io.github.landwarderer.futon.tracker.domain.model.MangaUpdates
 import io.github.landwarderer.futon.tracker.domain.model.TrackingLogItem
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 private const val NO_ID = 0L
 private const val MAX_LOG_SIZE = 120
+private const val MAX_STALE_UPDATE_DAYS = 90L
 
 @Reusable
 class TrackingRepository @Inject constructor(
@@ -76,7 +78,7 @@ class TrackingRepository @Inject constructor(
 			.onStart { gcIfNotCalled() }
 	}
 
-	suspend fun getTracks(offset: Int, limit: Int): List<MangaTracking> {
+	suspend fun getTracks(offset: Int, limit: Int, minActivityTime: Long, staleCheckTime: Long): List<MangaTracking> {
 		// Tracks from sources with update checking disabled never get their last_check_time
 		// advanced, so they permanently sort to the front of the batch. Filtering them after
 		// the SQL LIMIT would let them occupy batch slots forever, starving the rest of the
@@ -84,7 +86,12 @@ class TrackingRepository @Inject constructor(
 		val result = ArrayList<MangaTracking>(if (limit == Int.MAX_VALUE) 16 else limit)
 		var currentOffset = offset
 		while (result.size < limit) {
-			val window = db.getTracksDao().findAll(offset = currentOffset, limit = limit - result.size)
+			val window = db.getTracksDao().findAll(
+				offset = currentOffset,
+				limit = limit - result.size,
+				minActivityTime = minActivityTime,
+				staleCheckTime = staleCheckTime,
+			)
 			if (window.isEmpty()) {
 				break
 			}
@@ -161,6 +168,7 @@ class TrackingRepository @Inject constructor(
 
 	suspend fun gc() = db.withTransaction {
 		db.getTracksDao().gc()
+		db.getTracksDao().clearStaleCounters(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(MAX_STALE_UPDATE_DAYS))
 		db.getTrackLogsDao().run {
 			gc()
 			trim(MAX_LOG_SIZE)
