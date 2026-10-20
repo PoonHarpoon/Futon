@@ -32,6 +32,19 @@ class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig 
 	val isCaptchaNotificationsDisabled: Boolean
 		get() = prefs.getBoolean(KEY_NO_CAPTCHA, false)
 
+	/**
+	 * The User-Agent that earned this source's current `cf_clearance` cookie.
+	 *
+	 * Cloudflare only honours a clearance for the exact agent it was issued to, and the challenge can
+	 * only be solved by a WebView presenting an agent consistent with its own engine. Parsers that pin
+	 * an inconsistent (e.g. hard-coded desktop) agent in `getRequestHeaders()` would otherwise stay
+	 * blocked no matter how many times the challenge is solved. Set by the solver, applied by
+	 * `CommonHeadersInterceptor`; null means the parser's own agent is fine.
+	 */
+	var cloudFlareUserAgent: String?
+		get() = prefs.getString(KEY_CF_USER_AGENT, null)?.nullIfEmpty()
+		set(value) = prefs.edit { putString(KEY_CF_USER_AGENT, value?.sanitizeHeaderValue()) }
+
 	@Suppress("UNCHECKED_CAST")
 	override fun <T> get(key: ConfigKey<T>): T {
 		return when (key) {
@@ -80,5 +93,6 @@ class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig 
 		const val KEY_NO_CAPTCHA = "no_captcha"
 		const val KEY_SLOWDOWN = "slowdown"
 		const val KEY_SORT_ORDER = "sort_order"
+		const val KEY_CF_USER_AGENT = "cf_user_agent"
 	}
 }

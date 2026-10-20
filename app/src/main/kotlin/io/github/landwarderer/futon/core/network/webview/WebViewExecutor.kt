@@ -224,7 +224,8 @@ class WebViewExecutor @Inject constructor(
 
 	private fun MangaSource.getUserAgent(): String? {
 		val repository = mangaRepositoryFactoryProvider.get().create(this) as? ParserMangaRepository
-		return repository?.getRequestHeaders()?.get(CommonHeaders.USER_AGENT)
+		return repository?.getConfig()?.cloudFlareUserAgent
+			?: repository?.getRequestHeaders()?.get(CommonHeaders.USER_AGENT)
 	}
 
     @MainThread
