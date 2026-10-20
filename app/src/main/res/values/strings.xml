@@ -974,4 +974,11 @@
     <string name="update_removed">Update removed</string>
     <string name="exclude_nsfw_from_shortcuts">Hide NSFW from shortcuts</string>
     <string name="exclude_nsfw_from_shortcuts_summary">Adult manga will not appear in the shortcut menu shown when you long press the app icon</string>
+    <string name="e_ink">E-Ink</string>
+    <string name="flash_on_page_change">Flash on page change</string>
+    <string name="flash_on_page_change_summary">Refresh the screen with a short full-screen flash to reduce ghosting on E-Ink displays</string>
+    <string name="flash_duration">Flash duration</string>
+    <string name="flash_every">Flash every</string>
+    <string name="flash_with">Flash with</string>
+    <string name="milliseconds_pattern">%1$d ms</string>
 </resources>
