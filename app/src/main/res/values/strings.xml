@@ -1042,4 +1042,5 @@
     <string name="manga_unavailable_message_no_source">\"%1$s\" could not be loaded. It may have been removed or moved to another address.</string>
     <string name="manga_unavailable_search_alternatives">Find on other sources</string>
     <string name="manga_unavailable_hint">Alternatives searches the other enabled sources for the same title, so you can carry on reading where you left off.</string>
+    <string name="update_removed">Update removed</string>
 </resources>
