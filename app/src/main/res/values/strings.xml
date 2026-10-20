@@ -258,6 +258,7 @@
     <string name="tracking">Tracking</string>
     <string name="empty_favourite_categories">No favorite categories</string>
     <string name="logout">Log out</string>
+    <string name="sync_login">Log in to sync your data</string>
     <string name="bookmark_add">Add bookmark</string>
     <string name="bookmark_remove">Remove bookmark</string>
     <string name="bookmarks">Bookmarks</string>
