@@ -966,4 +966,13 @@
     <string name="download_only_on_charging_summary">Connect to a power source to start downloads</string>
     <string name="error_quota_too_low">Storage quota cannot be lower than current usage</string>
     <string name="download_quota_reached">Storage quota reached. Downloads paused.</string>
+    <string name="forgot_password">Forgot password</string>
+    <string name="reset_email_sent">If a valid account exists, an email to reset your password has been sent to your inbox</string>
+    <string name="sync_auth_reset_title">Reset password</string>
+    <string name="sync_auth_reset_hint">Please set a new password for your account</string>
+    <string name="password_reset">Password reset successfully</string>
+    <string name="no_reset_token">No reset token provided</string>
+    <string name="sync_password_reset_unsupported">This sync server does not support password reset</string>
+    <string name="sync_reset_insecure_url">The password reset link is invalid: the server address must use https</string>
+    <string name="sync_reset_unknown_server">This link sets a new password on %s, which is not a known sync server. Continue only if this is the server you use.</string>
 </resources>
