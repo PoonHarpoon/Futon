@@ -17,6 +17,7 @@ import io.github.landwarderer.futon.core.util.ext.append
 import io.github.landwarderer.futon.core.util.ext.printStackTraceDebug
 import io.github.landwarderer.futon.core.util.ext.toLocale
 import io.github.landwarderer.futon.explore.data.MangaSourcesRepository
+import io.github.landwarderer.futon.explore.data.SourcePresetsRepository
 import io.github.landwarderer.futon.favourites.domain.FavouritesRepository
 import io.github.landwarderer.futon.history.data.HistoryRepository
 import io.github.landwarderer.futon.list.domain.MangaListMapper
@@ -60,6 +61,7 @@ class SearchViewModel @Inject constructor(
 	private val historyRepository: HistoryRepository,
 	private val favouritesRepository: FavouritesRepository,
 	private val dataRepository: MangaDataRepository,
+	private val presetsRepository: SourcePresetsRepository,
 ) : BaseViewModel() {
 
 	val query = savedStateHandle.get<String>(AppRouter.KEY_QUERY).orEmpty()
@@ -148,7 +150,9 @@ class SearchViewModel @Inject constructor(
 			val sources = if (pinnedOnly.value) {
 				emptyList()
 			} else {
+				val presetSourceNames = getActivePresetSources()?.mapTo(HashSet()) { it.name }.orEmpty()
 				sourcesRepository.getDisabledSources()
+					.filterNot { it.name in presetSourceNames }
 					.sortedByDescending { it.priority() }
 			}
 			val semaphore = Semaphore(MAX_PARALLELISM)
@@ -169,7 +173,7 @@ class SearchViewModel @Inject constructor(
 			appendResult(searchHistory())
 			appendResult(searchFavorites())
 			appendResult(searchLocal())
-			val sources = if (pinnedOnly.value) {
+			val sources = getActivePresetSources() ?: if (pinnedOnly.value) {
 				sourcesRepository.getPinnedSources().toList()
 			} else {
 				sourcesRepository.getEnabledSources()
@@ -186,6 +190,14 @@ class SearchViewModel @Inject constructor(
 	}
 
 	// impl
+
+	/** The sources of the active preset, or null to fall back to the enabled (or pinned) ones. */
+	private suspend fun getActivePresetSources(): List<MangaSource>? {
+		val preset = presetsRepository.getById(settings.activeSourcePresetId) ?: return null
+		return sourcesRepository.getPresetSources(preset).let { sources ->
+			if (pinnedOnly.value) sources.filter { it.isPinned } else sources
+		}
+	}
 
 	private suspend fun searchSource(source: MangaSource): SearchResultsListModel? = runCatchingCancellable {
 		val searchHelper = searchHelperFactory.create(source)
