@@ -1075,6 +1075,7 @@
     <string name="preset_sources">Sources</string>
     <string name="replace">Replace</string>
     <string name="replace_source">Replace source</string>
+    <string name="source_replacement_confirm">Move every matched title to %s? Reading progress, favourites and tracking move with them.</string>
     <string name="same_content_type">Same content type</string>
     <string name="same_language">Same language</string>
     <string name="searching_sources_progress">%1$d/%2$d sources</string>
