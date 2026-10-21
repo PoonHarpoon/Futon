@@ -279,11 +279,18 @@ class TrackWorker @AssistedInject constructor(
 			return
 		}
 		val savedChapters = localManga?.manga?.chapters?.ids().orEmpty()
-		// Only the newest few: a dormant series that backfills its archive would otherwise queue
-		// hundreds of chapters at once.
 		val chapters = mangaUpdates.newChapters
 			.filterNot { it.id in savedChapters }
-			.takeLast(TrackerDownloadStrategy.MAX_CHAPTERS_PER_RUN)
+			.let {
+				// Only the newest few for recently read manga: a dormant series that backfills its archive
+				// would otherwise queue hundreds of chapters at once. Downloaded manga keep every new
+				// chapter, as before - the ones left out would never be offered again.
+				if (strategy == TrackerDownloadStrategy.RECENTLY_READ) {
+					it.takeLast(TrackerDownloadStrategy.MAX_CHAPTERS_PER_RUN)
+				} else {
+					it
+				}
+			}
 		if (chapters.isEmpty() || !hasFreeSpaceForDownload(manga) || isStorageQuotaReached()) {
 			return
 		}
