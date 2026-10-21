@@ -271,6 +271,9 @@
 			android:name="io.github.landwarderer.futon.settings.override.OverrideConfigActivity"
 			android:label="@string/edit" />
 		<activity
+			android:name="io.github.landwarderer.futon.alternatives.ui.covers.AlternativeCoversActivity"
+			android:label="@string/alternative_covers" />
+		<activity
 			android:name="io.github.landwarderer.futon.sync.ui.SyncAuthActivity"
 			android:exported="true"
 			android:label="@string/sync" />
