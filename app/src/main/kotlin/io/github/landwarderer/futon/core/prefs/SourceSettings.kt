@@ -32,6 +32,9 @@ class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig 
 	val isCaptchaNotificationsDisabled: Boolean
 		get() = prefs.getBoolean(KEY_NO_CAPTCHA, false)
 
+	val isCaptchaAutoResolveDisabled: Boolean
+		get() = prefs.getBoolean(KEY_NO_AUTO_CAPTCHA, false)
+
 	/**
 	 * The User-Agent that earned this source's current `cf_clearance` cookie.
 	 *
@@ -101,6 +104,7 @@ class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig 
 
 		const val KEY_DOMAIN = "domain"
 		const val KEY_NO_CAPTCHA = "no_captcha"
+		const val KEY_NO_AUTO_CAPTCHA = "no_auto_captcha"
 		const val KEY_SLOWDOWN = "slowdown"
 		const val KEY_SORT_ORDER = "sort_order"
 		const val KEY_CF_USER_AGENT = "cf_user_agent"
