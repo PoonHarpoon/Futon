@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
+import io.github.landwarderer.futon.core.db.LibrarySearchQuery
 import io.github.landwarderer.futon.core.db.MangaDatabase
 import io.github.landwarderer.futon.core.db.TABLE_FAVOURITES
 import io.github.landwarderer.futon.core.db.TABLE_FAVOURITE_CATEGORIES
@@ -60,11 +61,16 @@ class FavouritesRepository @Inject constructor(
 		return entities.toMangaList()
 	}
 
-	fun observeAll(order: ListSortOrder, filterOptions: Set<ListFilterOption>, limit: Int): Flow<List<Manga>> {
+	fun observeAll(
+		order: ListSortOrder,
+		filterOptions: Set<ListFilterOption>,
+		limit: Int,
+		search: LibrarySearchQuery = LibrarySearchQuery.EMPTY,
+	): Flow<List<Manga>> {
 		if (ListFilterOption.Downloaded in filterOptions) {
-			return localObserver.observeAll(order, filterOptions, limit)
+			return localObserver.observeAll(order, filterOptions, limit, search)
 		}
-		return db.getFavouritesDao().observeAll(order, filterOptions, limit)
+		return db.getFavouritesDao().observeAll(order, filterOptions, limit, search)
 			.map { it.toMangaList() }
 	}
 
@@ -77,18 +83,24 @@ class FavouritesRepository @Inject constructor(
 		categoryId: Long,
 		order: ListSortOrder,
 		filterOptions: Set<ListFilterOption>,
-		limit: Int
+		limit: Int,
+		search: LibrarySearchQuery = LibrarySearchQuery.EMPTY,
 	): Flow<List<Manga>> {
 		if (ListFilterOption.Downloaded in filterOptions) {
-			return localObserver.observeAll(categoryId, order, filterOptions, limit)
+			return localObserver.observeAll(categoryId, order, filterOptions, limit, search)
 		}
-		return db.getFavouritesDao().observeAll(categoryId, order, filterOptions, limit)
+		return db.getFavouritesDao().observeAll(categoryId, order, filterOptions, limit, search)
 			.map { it.toMangaList() }
 	}
 
-	fun observeAll(categoryId: Long, filterOptions: Set<ListFilterOption>, limit: Int): Flow<List<Manga>> {
+	fun observeAll(
+		categoryId: Long,
+		filterOptions: Set<ListFilterOption>,
+		limit: Int,
+		search: LibrarySearchQuery = LibrarySearchQuery.EMPTY,
+	): Flow<List<Manga>> {
 		return observeOrder(categoryId)
-			.flatMapLatest { order -> observeAll(categoryId, order, filterOptions, limit) }
+			.flatMapLatest { order -> observeAll(categoryId, order, filterOptions, limit, search) }
 	}
 
 	fun observeMangaCount(): Flow<Int> {
