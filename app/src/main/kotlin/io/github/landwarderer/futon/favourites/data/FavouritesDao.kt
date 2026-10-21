@@ -17,6 +17,7 @@ import kotlinx.coroutines.isActive
 import org.intellij.lang.annotations.Language
 import io.github.landwarderer.futon.core.db.MangaQueryBuilder
 import io.github.landwarderer.futon.core.db.TABLE_FAVOURITES
+import io.github.landwarderer.futon.core.db.contentTypeCondition
 import io.github.landwarderer.futon.core.db.entity.MangaWithTags
 import io.github.landwarderer.futon.favourites.domain.model.Cover
 import io.github.landwarderer.futon.list.domain.ListFilterOption
@@ -143,6 +144,28 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 	@Query("SELECT manga.source AS count FROM favourites LEFT JOIN manga ON manga.manga_id = favourites.manga_id WHERE favourites.category_id = :categoryId GROUP BY manga.source ORDER BY COUNT(manga.source) DESC LIMIT :limit")
 	abstract suspend fun findPopularSources(categoryId: Long, limit: Int): List<String>
 
+	@Query(
+		"""SELECT tags.title FROM tags
+		INNER JOIN manga_tags ON tags.tag_id = manga_tags.tag_id
+		INNER JOIN favourites ON favourites.manga_id = manga_tags.manga_id
+		WHERE favourites.deleted_at = 0
+		GROUP BY tags.title
+		ORDER BY COUNT(DISTINCT manga_tags.manga_id) DESC
+		LIMIT :limit""",
+	)
+	abstract suspend fun findPopularTagTitles(limit: Int): List<String>
+
+	@Query(
+		"""SELECT tags.title FROM tags
+		INNER JOIN manga_tags ON tags.tag_id = manga_tags.tag_id
+		INNER JOIN favourites ON favourites.manga_id = manga_tags.manga_id
+		WHERE favourites.category_id = :categoryId AND favourites.deleted_at = 0
+		GROUP BY tags.title
+		ORDER BY COUNT(DISTINCT manga_tags.manga_id) DESC
+		LIMIT :limit""",
+	)
+	abstract suspend fun findPopularTagTitles(categoryId: Long, limit: Int): List<String>
+
 	fun dump(): Flow<FavouriteManga> = flow {
 		val window = 10
 		var offset = 0
@@ -256,8 +279,10 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 		ListFilterOption.Macro.NEW_CHAPTERS -> "(SELECT chapters_new FROM tracks WHERE tracks.manga_id = favourites.manga_id) > 0"
 		ListFilterOption.Macro.NSFW -> "manga.nsfw = 1"
 		is ListFilterOption.Tag -> "EXISTS(SELECT * FROM manga_tags WHERE favourites.manga_id = manga_tags.manga_id AND tag_id = ${option.tagId})"
+		is ListFilterOption.TagTitle -> "EXISTS(SELECT * FROM manga_tags INNER JOIN tags ON tags.tag_id = manga_tags.tag_id WHERE favourites.manga_id = manga_tags.manga_id AND tags.title = ${sqlEscapeString(option.titleText)})"
 		ListFilterOption.Downloaded -> "EXISTS(SELECT * FROM local_index WHERE local_index.manga_id = favourites.manga_id)"
 		is ListFilterOption.Source -> "manga.source = ${sqlEscapeString(option.mangaSource.name)}"
+		is ListFilterOption.ContentType -> contentTypeCondition(option.contentType)
 		else -> null
 	}
 }
