@@ -445,7 +445,7 @@ class AppSettings internal constructor(
 		get() = prefs.getEnumValue(KEY_DOWNLOADS_FORMAT, DownloadFormat.AUTOMATIC)
 
 	var isSuggestionsEnabled: Boolean
-		get() = prefs.getBoolean(KEY_SUGGESTIONS, true)
+		get() = prefs.getBoolean(KEY_SUGGESTIONS, false)
 		set(value) = prefs.edit { putBoolean(KEY_SUGGESTIONS, value) }
 
 	val isSuggestionsWiFiOnly: Boolean
