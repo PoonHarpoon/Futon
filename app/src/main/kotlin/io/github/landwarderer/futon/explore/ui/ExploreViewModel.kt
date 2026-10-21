@@ -15,6 +15,8 @@ import io.github.landwarderer.futon.core.util.ext.MutableEventFlow
 import io.github.landwarderer.futon.core.util.ext.call
 import io.github.landwarderer.futon.core.util.ext.combine
 import io.github.landwarderer.futon.explore.data.MangaSourcesRepository
+import io.github.landwarderer.futon.explore.data.SourcePreset
+import io.github.landwarderer.futon.explore.data.SourcePresetsRepository
 import io.github.landwarderer.futon.explore.domain.ExploreRepository
 import io.github.landwarderer.futon.explore.ui.model.ExploreButtons
 import io.github.landwarderer.futon.explore.ui.model.MangaSourceItem
@@ -26,6 +28,7 @@ import io.github.landwarderer.futon.list.ui.model.LoadingState
 import io.github.landwarderer.futon.list.ui.model.MangaCompactListModel
 import io.github.landwarderer.futon.suggestions.domain.SuggestionRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +48,7 @@ class ExploreViewModel @Inject constructor(
 	private val suggestionRepository: SuggestionRepository,
 	private val exploreRepository: ExploreRepository,
 	private val sourcesRepository: MangaSourcesRepository,
+	private val presetsRepository: SourcePresetsRepository,
 	private val shortcutManager: AppShortcutManager,
 ) : BaseViewModel() {
 
@@ -64,6 +68,23 @@ class ExploreViewModel @Inject constructor(
 		key = AppSettings.KEY_SUGGESTIONS,
 		valueProducer = { isSuggestionsEnabled },
 	)
+
+	/** The active preset, or null when there is none or it no longer exists (deleted, not restored...). */
+	private val activePresetFlow: StateFlow<SourcePreset?> = settings.observeAsFlow(
+		key = AppSettings.KEY_ACTIVE_SOURCE_PRESET,
+		valueProducer = { activeSourcePresetId },
+	).flatMapLatest { id ->
+		if (id == SourcePresetsRepository.NO_PRESET) flowOf(null) else presetsRepository.observe(id)
+	}.stateIn(viewModelScope + Dispatchers.IO, SharingStarted.Eagerly, null)
+
+	val presets: StateFlow<List<SourcePreset>> = presetsRepository.observeAll()
+		.stateIn(viewModelScope + Dispatchers.IO, SharingStarted.Eagerly, emptyList())
+
+	val activePresetId: Long
+		get() = activePresetFlow.value?.id ?: SourcePresetsRepository.NO_PRESET
+
+	val isPresetActive: Boolean
+		get() = activePresetFlow.value != null
 
 	val onOpenManga = MutableEventFlow<Manga>()
 	val onActionDone = MutableEventFlow<ReversibleAction>()
@@ -101,11 +122,23 @@ class ExploreViewModel @Inject constructor(
 		}
 	}
 
+	fun setActivePreset(presetId: Long) {
+		settings.activeSourcePresetId = presetId
+	}
+
 	fun disableSources(sources: Collection<MangaSource>) {
 		launchJob(Dispatchers.IO) {
-			val rollback = sourcesRepository.setSourcesEnabled(sources, isEnabled = false)
 			val message = if (sources.size == 1) R.string.source_disabled else R.string.sources_disabled
-			onActionDone.call(ReversibleAction(message, rollback))
+			val preset = activePresetFlow.value
+			if (preset != null) {
+				// With a preset active, "disable" takes the sources out of the preset, not out of the app.
+				val removed = sources.mapTo(HashSet(sources.size)) { it.name }
+				presetsRepository.updatePresetSources(preset.id, preset.sources - removed)
+				onActionDone.call(ReversibleAction(message, null))
+			} else {
+				val rollback = sourcesRepository.setSourcesEnabled(sources, isEnabled = false)
+				onActionDone.call(ReversibleAction(message, rollback))
+			}
 		}
 	}
 
@@ -138,15 +171,24 @@ class ExploreViewModel @Inject constructor(
 		}
 	}
 
+	private fun observeSourcesForDisplay(): Flow<List<MangaSourceInfo>> = activePresetFlow.flatMapLatest { preset ->
+		if (preset != null) {
+			sourcesRepository.observePresetSources(preset)
+		} else {
+			sourcesRepository.observeEnabledSources()
+		}
+	}
+
 	private fun createContentFlow() = combine(
-		sourcesRepository.observeEnabledSources(),
+		observeSourcesForDisplay(),
 		getSuggestionFlow(),
 		isGrid,
 		isRandomLoading,
 		isAllSourcesEnabled,
 		sourcesRepository.observeHasNewSourcesForBadge(),
-	) { content, suggestions, grid, randomLoading, allSourcesEnabled, newSources ->
-		buildList(content, suggestions, grid, randomLoading, allSourcesEnabled, newSources)
+		activePresetFlow,
+	) { content, suggestions, grid, randomLoading, allSourcesEnabled, newSources, activePreset ->
+		buildList(content, suggestions, grid, randomLoading, allSourcesEnabled, newSources, activePreset)
 	}.withErrorHandling()
 
 	private fun buildList(
@@ -156,9 +198,10 @@ class ExploreViewModel @Inject constructor(
 		randomLoading: Boolean,
 		allSourcesEnabled: Boolean,
 		hasNewSources: Boolean,
+		activePreset: SourcePreset?,
 	): List<ListModel> {
 		val result = ArrayList<ListModel>(sources.size + 3)
-		result += ExploreButtons(randomLoading)
+		result += ExploreButtons(randomLoading, activePreset?.title)
 		if (recommendation.isNotEmpty()) {
 			result += ListHeader(R.string.suggestions, R.string.more, R.id.nav_suggestions)
 			result += RecommendationsItem(recommendation.toRecommendationList())
@@ -166,8 +209,8 @@ class ExploreViewModel @Inject constructor(
 		if (sources.isNotEmpty()) {
 			result += ListHeader(
 				textRes = R.string.remote_sources,
-				buttonTextRes = if (allSourcesEnabled) R.string.manage else R.string.catalog,
-				badge = if (!allSourcesEnabled && hasNewSources) "" else null,
+				buttonTextRes = if (allSourcesEnabled && activePreset == null) R.string.manage else R.string.catalog,
+				badge = if (!allSourcesEnabled && activePreset == null && hasNewSources) "" else null,
 			)
 			sources.mapTo(result) { MangaSourceItem(it, isGrid) }
 		} else {
@@ -182,7 +225,7 @@ class ExploreViewModel @Inject constructor(
 	}
 
 	private fun getLoadingStateList() = listOf(
-		ExploreButtons(isRandomLoading.value),
+		ExploreButtons(isRandomLoading.value, activePresetFlow.value?.title),
 		LoadingState,
 	)
 
