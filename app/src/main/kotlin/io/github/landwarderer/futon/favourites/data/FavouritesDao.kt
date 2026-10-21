@@ -15,9 +15,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import org.intellij.lang.annotations.Language
+import io.github.landwarderer.futon.core.db.LibrarySearchQuery
 import io.github.landwarderer.futon.core.db.MangaQueryBuilder
+import io.github.landwarderer.futon.core.db.SqlCondition
 import io.github.landwarderer.futon.core.db.TABLE_FAVOURITES
 import io.github.landwarderer.futon.core.db.contentTypeCondition
+import io.github.landwarderer.futon.core.db.librarySearchCondition
 import io.github.landwarderer.futon.core.db.entity.MangaWithTags
 import io.github.landwarderer.futon.favourites.domain.model.Cover
 import io.github.landwarderer.futon.list.domain.ListFilterOption
@@ -41,6 +44,23 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 	@Query("SELECT manga.* FROM favourites LEFT JOIN manga ON manga.manga_id = favourites.manga_id WHERE favourites.deleted_at = 0 AND (manga.title LIKE :query OR manga.alt_title LIKE :query) LIMIT :limit")
 	abstract suspend fun searchByTitle(query: String, limit: Int): List<MangaWithTags>
 
+	/**
+	 * Free-text match over everything that identifies an entry on the Favourites screen: its title, the
+	 * source it came from, and the category (list) it is filed under. [pattern] must be escaped for
+	 * `ESCAPE '\'`.
+	 */
+	@Transaction
+	@Query(
+		"SELECT manga.* FROM favourites LEFT JOIN manga ON manga.manga_id = favourites.manga_id " +
+			"WHERE favourites.deleted_at = 0 AND (" +
+			"manga.title LIKE :pattern ESCAPE '\\' OR manga.alt_title LIKE :pattern ESCAPE '\\' " +
+			"OR manga.source IN (:sourceNames) " +
+			"OR EXISTS(SELECT 1 FROM favourite_categories c WHERE c.category_id = favourites.category_id " +
+			"AND c.deleted_at = 0 AND c.title LIKE :pattern ESCAPE '\\')" +
+			") GROUP BY favourites.manga_id ORDER BY favourites.created_at DESC LIMIT :limit",
+	)
+	abstract suspend fun filter(pattern: String, sourceNames: List<String>, limit: Int): List<MangaWithTags>
+
 	@Transaction
 	@Query("SELECT manga.* FROM favourites LEFT JOIN manga ON manga.manga_id = favourites.manga_id WHERE favourites.deleted_at = 0 AND (manga.author LIKE :query) LIMIT :limit")
 	abstract suspend fun searchByAuthor(query: String, limit: Int): List<MangaWithTags>
@@ -52,8 +72,9 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 	fun observeAll(
 		order: ListSortOrder,
 		filterOptions: Set<ListFilterOption>,
-		limit: Int
-	): Flow<List<FavouriteManga>> = observeAll(0L, order, filterOptions, limit)
+		limit: Int,
+		search: LibrarySearchQuery = LibrarySearchQuery.EMPTY,
+	): Flow<List<FavouriteManga>> = observeAll(0L, order, filterOptions, limit, search)
 
 	@Transaction
 	@Query("SELECT * FROM favourites WHERE deleted_at = 0 ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
@@ -73,11 +94,13 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 		categoryId: Long,
 		order: ListSortOrder,
 		filterOptions: Set<ListFilterOption>,
-		limit: Int
+		limit: Int,
+		search: LibrarySearchQuery = LibrarySearchQuery.EMPTY,
 	): Flow<List<FavouriteManga>> = observeAllImpl(
 		MangaQueryBuilder(TABLE_FAVOURITES, this)
 			.join("LEFT JOIN manga ON favourites.manga_id = manga.manga_id")
 			.where("deleted_at = 0")
+			.let { if (search.isEmpty()) it else it.where(searchCondition(search)) }
 			.where(
 				if (categoryId != 0L) {
 					"category_id = $categoryId"
@@ -273,6 +296,13 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 		else -> throw IllegalArgumentException("Sort order $sortOrder is not supported")
 	}
+
+	/** Matches anything that identifies an entry on this screen: title, source, or the list it is filed under. */
+	private fun searchCondition(search: LibrarySearchQuery): SqlCondition = librarySearchCondition(
+		query = search,
+		categoryMatch = "EXISTS(SELECT 1 FROM favourite_categories c WHERE c.category_id = favourites.category_id " +
+			"AND c.deleted_at = 0 AND c.title LIKE ? ESCAPE '\\')",
+	)
 
 	override fun getCondition(option: ListFilterOption): String? = when (option) {
 		ListFilterOption.Macro.COMPLETED -> "EXISTS(SELECT * FROM history WHERE history.manga_id = favourites.manga_id AND history.percent >= $PROGRESS_COMPLETED)"
