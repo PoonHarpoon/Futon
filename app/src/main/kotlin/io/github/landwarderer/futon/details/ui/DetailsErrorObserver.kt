@@ -5,11 +5,14 @@ import androidx.lifecycle.LifecycleOwner
 import com.google.android.material.snackbar.Snackbar
 import io.github.landwarderer.futon.R
 import io.github.landwarderer.futon.alternatives.ui.MangaUnavailableDialog
+import io.github.landwarderer.futon.core.exceptions.CloudFlareProtectedException
 import io.github.landwarderer.futon.core.exceptions.UnsupportedSourceException
 import io.github.landwarderer.futon.core.exceptions.resolve.ErrorObserver
 import io.github.landwarderer.futon.core.exceptions.resolve.ExceptionResolver
 import io.github.landwarderer.futon.core.model.isLocal
 import io.github.landwarderer.futon.core.nav.router
+import io.github.landwarderer.futon.core.prefs.SourceSettings
+import io.github.landwarderer.futon.core.util.ext.findCloudFlareException
 import io.github.landwarderer.futon.core.util.ext.getDisplayMessage
 import io.github.landwarderer.futon.core.util.ext.isContentNotFound
 import io.github.landwarderer.futon.core.util.ext.isNetworkError
@@ -21,7 +24,7 @@ import org.koitharu.kotatsu.parsers.model.Manga
 class DetailsErrorObserver(
 	override val activity: DetailsActivity,
 	private val viewModel: DetailsViewModel,
-	resolver: ExceptionResolver?,
+	private val resolver: ExceptionResolver?,
 ) : ErrorObserver(
 	activity.viewBinding.scrollView, null, resolver,
 	{ isResolved ->
@@ -32,6 +35,7 @@ class DetailsErrorObserver(
 ) {
 
 	private var unavailableDialog: MangaUnavailableDialog? = null
+	private var isAutoResolveAttempted = false
 
 	init {
 		// The prompt is an activity-hosted dialog, so it has to go down with the activity.
@@ -46,6 +50,21 @@ class DetailsErrorObserver(
 	}
 
 	override suspend fun emit(value: Throwable) {
+		// Opening a manga is an explicit user action, so a silent captcha solve is appropriate. Only once per
+		// screen: if the source is still protected after that, the snackbar with the manual "Solve" follows.
+		val cf = value.findCloudFlareException()
+		if (
+			cf is CloudFlareProtectedException &&
+			resolver != null &&
+			!isAutoResolveAttempted &&
+			!SourceSettings(host.context, cf.source).isCaptchaAutoResolveDisabled
+		) {
+			isAutoResolveAttempted = true
+			if (resolver.resolve(cf, tryAutoResolve = true)) {
+				viewModel.reload()
+				return
+			}
+		}
 		// A title that is gone from its source is a dead end, so ask up front whether
 		// to go looking for it on another source.
 		val missingManga = viewModel.getMangaOrNull()?.takeIf { !it.isLocal && value.isContentNotFound() }
