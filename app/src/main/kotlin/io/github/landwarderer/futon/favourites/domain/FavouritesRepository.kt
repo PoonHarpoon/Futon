@@ -170,6 +170,16 @@ class FavouritesRepository @Inject constructor(
 		}.toMangaSources()
 	}
 
+	suspend fun findPopularTagTitles(categoryId: Long, limit: Int): List<String> {
+		return db.getFavouritesDao().run {
+			if (categoryId == 0L) {
+				findPopularTagTitles(limit)
+			} else {
+				findPopularTagTitles(categoryId, limit)
+			}
+		}
+	}
+
 	suspend fun createCategory(
 		title: String,
 		sortOrder: ListSortOrder,
