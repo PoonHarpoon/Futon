@@ -34,6 +34,7 @@ import io.github.landwarderer.futon.list.ui.adapter.loadingFooterAD
 import io.github.landwarderer.futon.list.ui.adapter.loadingStateAD
 import io.github.landwarderer.futon.list.ui.model.ListModel
 import org.koitharu.kotatsu.parsers.model.Manga
+import org.koitharu.kotatsu.parsers.model.MangaSource
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -61,7 +62,7 @@ class SourceReplacementActivity : BaseActivity<ActivityAlternativesBinding>(),
 		viewBinding.scrollViewSummary.isVisible = false
 		val listAdapter = BaseListAdapter<ListModel>()
 			.addDelegate(ListItemType.MANGA_LIST_DETAILED, alternativeAD(coil, this, this))
-			.addDelegate(ListItemType.SOURCE_REPLACEMENT, sourceReplacementAD(viewModel::selectSource))
+			.addDelegate(ListItemType.SOURCE_REPLACEMENT, sourceReplacementAD(::onSourceMatchClick))
 			.addDelegate(
 				ListItemType.STATE_EMPTY,
 				sourceReplacementEmptyStateAD(
@@ -291,6 +292,23 @@ class SourceReplacementActivity : BaseActivity<ActivityAlternativesBinding>(),
 			viewModel.skipCurrent()
 		}
 	}
+	/** Outside manual mode, picking a source migrates every matched title at once, so ask first */
+	private fun onSourceMatchClick(source: MangaSource?) {
+		if (source == null || viewModel.isManualMode.value) {
+			viewModel.selectSource(source)
+			return
+		}
+		buildAlertDialog(this, isCentered = true) {
+			setIcon(R.drawable.ic_replace)
+			setTitle(R.string.replace_source)
+			setMessage(getString(R.string.source_replacement_confirm, source.getTitle(context)))
+			setNegativeButton(android.R.string.cancel, null)
+			setPositiveButton(R.string.replace) { _, _ ->
+				viewModel.selectSource(source)
+			}
+		}.show()
+	}
+
 	private fun confirmMigration(target: Manga) {
 		val source = viewModel.manga
 		buildAlertDialog(this, isCentered = true) {
