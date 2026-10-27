@@ -56,14 +56,15 @@ class ProgressUpdateUseCase @Inject constructor(
 		val pagePercent = (history.page + 1) / pagesCount.toFloat()
 		val ppc = 1f / chaptersCount
 		val result = ppc * chapterIndex + ppc * pagePercent
-		if (result != history.percent || history.chaptersCount != chaptersCount) {
+		// history.chaptersCount is the chapter count at the reader's last save: smart resume relies on it
+		// to tell that the saved chapter was the latest one, so only the reader may change it.
+		if (result != history.percent) {
 			updateIfUnchanged(
 				manga = manga,
 				history = history,
 				newHistory = history.copy(
 					chapterId = chapter.id,
 					percent = result,
-					chaptersCount = chaptersCount,
 				),
 			)
 		}
