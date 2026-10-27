@@ -71,7 +71,7 @@ class TrackerUnstuckMigrationUseCase @Inject constructor(
 	}
 
 	/**
-	 * Second pass: refreshes history.chaptersCount and history.percent for every track that
+	 * Second pass: refreshes history.percent for every track that
 	 * already has chapters_new > 0, so those mangas no longer render as "completed" even though
 	 * new chapters exist.
 	 */
@@ -164,8 +164,9 @@ class TrackerUnstuckMigrationUseCase @Inject constructor(
 		} else {
 			history.percent
 		}
-		if (history.chaptersCount == totalChapters && history.percent == newPercent) return
-		historyDao.update(history.copy(percent = newPercent, chaptersCount = totalChapters))
+		// Keep chaptersCount: smart resume reads it as the chapter count at the reader's last save
+		if (history.percent == newPercent) return
+		historyDao.update(history.copy(percent = newPercent))
 	}
 
 	private suspend fun findAllTracks() = db.getTracksDao().findAll(
