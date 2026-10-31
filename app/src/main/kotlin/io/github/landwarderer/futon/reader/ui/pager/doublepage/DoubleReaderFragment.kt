@@ -164,9 +164,16 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 		)
 	}
 
+	/**
+	 * Pages by identity from the adapter's own items, which may lag behind the view model content,
+	 * with spacers skipped. The view model orders them, so reversed spreads need no special case.
+	 */
 	private fun notifyPageChanged(lowerPos: Int, upperPos: Int) {
-		val range = pageList.toOriginalRange(lowerPos, upperPos) ?: return
-		viewModel.onCurrentPageChanged(range.first, range.last)
+		val adapter = readerAdapter ?: return
+		val pages = (lowerPos..upperPos).mapNotNull { pos ->
+			adapter.getItemOrNull(pos)?.takeUnless { it.isSpacer }
+		}
+		viewModel.onCurrentPageChanged(pages.firstOrNull() ?: return, pages.last())
 	}
 
 	private fun scrollToAdapterPosition(position: Int) {
