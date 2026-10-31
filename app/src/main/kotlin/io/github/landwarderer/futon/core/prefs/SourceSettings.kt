@@ -3,6 +3,7 @@ package io.github.landwarderer.futon.core.prefs
 import android.content.Context
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.core.content.edit
+import androidx.preference.PreferenceManager
 import io.github.landwarderer.futon.core.util.ext.getEnumValue
 import io.github.landwarderer.futon.core.util.ext.putEnumValue
 import io.github.landwarderer.futon.core.util.ext.sanitizeHeaderValue
@@ -16,6 +17,8 @@ import io.github.landwarderer.futon.settings.utils.validation.DomainValidator
 import java.io.File
 
 class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig {
+
+	private val appContext = context.applicationContext
 
     private val prefs = context.getSharedPreferences(
         source.name.replace(File.separatorChar, '$'),
@@ -32,8 +35,14 @@ class SourceSettings(context: Context, source: MangaSource) : MangaSourceConfig 
 	val isCaptchaNotificationsDisabled: Boolean
 		get() = prefs.getBoolean(KEY_NO_CAPTCHA, false)
 
+	/**
+	 * Automatic solving is experimental and opt-in: it stays off unless it is enabled globally,
+	 * and can still be turned off for a single source.
+	 */
 	val isCaptchaAutoResolveDisabled: Boolean
-		get() = prefs.getBoolean(KEY_NO_AUTO_CAPTCHA, false)
+		get() = !PreferenceManager.getDefaultSharedPreferences(appContext)
+			.getBoolean(AppSettings.KEY_CAPTCHA_AUTO_SOLVE, false) ||
+			prefs.getBoolean(KEY_NO_AUTO_CAPTCHA, false)
 
 	/**
 	 * The User-Agent that earned this source's current `cf_clearance` cookie.
