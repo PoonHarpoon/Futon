@@ -170,7 +170,7 @@ class TrackWorker @AssistedInject constructor(
 				launch {
 					// The source permit comes first: a busy source must not hold the global slots while it waits
 					sourceSemaphore.withPermit {
-						if (source in blockedSources) {
+						if (blockedSources.containsKey(source)) {
 							skipped.getOrPut(source) { Collections.synchronizedList(ArrayList()) }.add(track.manga.id)
 							send(null)
 							return@withPermit
