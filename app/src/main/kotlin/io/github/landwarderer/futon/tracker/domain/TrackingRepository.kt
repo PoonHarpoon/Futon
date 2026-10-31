@@ -15,12 +15,14 @@ import io.github.landwarderer.futon.core.parser.MangaRepository
 import io.github.landwarderer.futon.core.parser.ParserMangaRepository
 import io.github.landwarderer.futon.core.prefs.AppSettings
 import io.github.landwarderer.futon.core.util.ext.mapItems
+import io.github.landwarderer.futon.core.util.ext.printStackTraceDebug
 import io.github.landwarderer.futon.core.util.ext.toInstantOrNull
 import io.github.landwarderer.futon.details.domain.ProgressUpdateUseCase
 import io.github.landwarderer.futon.list.domain.ListFilterOption
 import org.koitharu.kotatsu.parsers.config.ConfigKey
 import org.koitharu.kotatsu.parsers.model.Manga
 import org.koitharu.kotatsu.parsers.util.ifZero
+import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
 import io.github.landwarderer.futon.tracker.data.TrackEntity
 import io.github.landwarderer.futon.tracker.data.TrackLogEntity
 import io.github.landwarderer.futon.tracker.data.toTrackingLogItem
@@ -191,11 +193,11 @@ class TrackingRepository @Inject constructor(
 	}
 
 	suspend fun saveUpdates(updates: MangaUpdates) {
+		val hasNewChapters = updates is MangaUpdates.Success && updates.isValid && updates.newChapters.isNotEmpty()
 		db.withTransaction {
 			val track = getOrCreateTrack(updates.manga.id).mergeWith(updates)
 			db.getTracksDao().upsert(track)
-			if (updates is MangaUpdates.Success && updates.isValid && updates.newChapters.isNotEmpty()) {
-				progressUpdateUseCase(updates.manga)
+			if (updates is MangaUpdates.Success && hasNewChapters) {
 				val logEntity = TrackLogEntity(
 					mangaId = updates.manga.id,
 					chapters = updates.newChapters.joinToString("\n") { x -> x.name },
@@ -203,6 +205,15 @@ class TrackingRepository @Inject constructor(
 					isUnread = true,
 				)
 				db.getTrackLogsDao().insert(logEntity)
+			}
+		}
+		if (hasNewChapters) {
+			// Outside the transaction: the progress refresh may load the chapter pages from the network.
+			// It only refreshes the displayed progress, so a failure must not fail the saved check.
+			runCatchingCancellable {
+				progressUpdateUseCase(updates.manga)
+			}.onFailure { e ->
+				e.printStackTraceDebug("TrackingRepository::saveUpdates")
 			}
 		}
 	}
