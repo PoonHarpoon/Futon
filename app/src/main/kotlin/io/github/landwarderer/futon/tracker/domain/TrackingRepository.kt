@@ -36,6 +36,7 @@ import javax.inject.Inject
 private const val NO_ID = 0L
 private const val MAX_LOG_SIZE = 120
 private const val MAX_STALE_UPDATE_DAYS = 90L
+private const val MAX_QUERY_IDS = 500
 
 @Reusable
 class TrackingRepository @Inject constructor(
@@ -218,6 +219,25 @@ class TrackingRepository @Inject constructor(
 		}
 	}
 
+	/**
+	 * Records tracks that were not checked because their source failed with [failure] earlier in the same run.
+	 * They are stamped as checked, so a blocked source cannot fill every following batch.
+	 */
+	suspend fun saveSkipped(mangaIds: Collection<Long>, failure: MangaUpdates.Failure) {
+		if (mangaIds.isEmpty()) {
+			return
+		}
+		val now = System.currentTimeMillis()
+		val result = failure.toResultCode()
+		val error = failure.error?.toString()
+		db.withTransaction {
+			// stay below the SQLite bound parameters limit
+			for (chunk in mangaIds.chunked(MAX_QUERY_IDS)) {
+				db.getTracksDao().markChecked(chunk, now, result, error)
+			}
+		}
+	}
+
 	suspend fun clearUpdates(ids: Collection<Long>) {
 		when {
 			ids.isEmpty() -> return
@@ -297,7 +317,7 @@ class TrackingRepository @Inject constructor(
 				newChapters = newChapters,
 				lastCheckTime = System.currentTimeMillis(),
 				lastChapterDate = lastChapterDate,
-				lastResult = TrackEntity.RESULT_FAILED,
+				lastResult = updates.toResultCode(),
 				lastError = updates.error?.toString(),
 			)
 
@@ -320,6 +340,12 @@ class TrackingRepository @Inject constructor(
 				)
 			}
 		}
+	}
+
+	private fun MangaUpdates.Failure.toResultCode(): Int = if (isCaptchaRequired()) {
+		TrackEntity.RESULT_CAPTCHA
+	} else {
+		TrackEntity.RESULT_FAILED
 	}
 
 	private suspend fun gcIfNotCalled() {
