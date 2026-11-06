@@ -70,6 +70,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
@@ -130,6 +131,13 @@ class TrackWorker @AssistedInject constructor(
 			DebugLog.log(LOG_TAG, "Worker SKIP id=$id: manual run expired")
 			return Result.success()
 		}
+		if (TAG_RECHECK in tags && runAttemptCount < MAX_RECHECK_DEFERRALS && isOtherCheckRunning()) {
+			// That check records the tracks it skipped at the captcha only when it ends. Starting now would
+			// only find the track that hit the captcha, and the rest of the source would be marked as blocked
+			// right after, waiting for another solve: come back once it is done.
+			DebugLog.log(LOG_TAG, "Recheck id=$id deferred: another check is running (attempt $runAttemptCount)")
+			return Result.retry()
+		}
 		notificationHelper.updateChannels()
 		val isForeground = trySetForeground()
 		// Full run when manually triggered (TAG_ONESHOT), regardless of whether the
@@ -167,6 +175,13 @@ class TrackWorker @AssistedInject constructor(
 
 		is MangaUpdates.Failure -> "FAIL '${manga.title}' [${manga.source.name}] ${error?.javaClass?.simpleName}: ${error?.message?.take(200)}" +
 			(if (isSourceBlocked()) " (blocks source)" else "")
+	}
+
+	private suspend fun isOtherCheckRunning(): Boolean {
+		val query = WorkQuery.Builder.fromTags(listOf(TAG, TAG_ONESHOT))
+			.addStates(listOf(WorkInfo.State.RUNNING))
+			.build()
+		return workManager.getWorkInfosFlow(query).first().any { it.id != id }
 	}
 
 	private fun isExpiredManualRun(): Boolean {
@@ -500,6 +515,7 @@ class TrackWorker @AssistedInject constructor(
 				.setConstraints(constraints)
 				.setInputData(workDataOf(KEY_SOURCE to source.name))
 				.addTag(TAG_RECHECK)
+				.setBackoffCriteria(BackoffPolicy.LINEAR, RECHECK_DEFER_SECONDS, TimeUnit.SECONDS)
 				.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
 				.build()
 			workManager.enqueueUniqueWork("${TAG_RECHECK}_${source.name}", ExistingWorkPolicy.KEEP, request)
@@ -529,6 +545,8 @@ class TrackWorker @AssistedInject constructor(
 		const val TAG_RECHECK = "tracking_recheck"
 		const val KEY_SOURCE = "source"
 		const val KEY_REQUESTED_AT = "requested_at"
+		const val MAX_RECHECK_DEFERRALS = 15
+		const val RECHECK_DEFER_SECONDS = 60L
 		val MANUAL_RUN_EXPIRY_MS = TimeUnit.MINUTES.toMillis(30)
 		val WORKER_NOTIFICATION_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(10)
 		const val MAX_PARALLELISM = 6
