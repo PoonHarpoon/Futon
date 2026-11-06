@@ -139,9 +139,15 @@ class DebugLogViewModel @Inject constructor(
 		text = URL_REGEX.replace(text) { match ->
 			if (hideSources) "<url>" else "${match.groupValues[1]}/<redacted>"
 		}
-		text = text.replaceAllWhole(titles, "title")
+		val titleTokens = HashMap<String, String>()
+		// Titles as the log quotes them first: a title fetched during a check may differ from the one in the
+		// database (MangaDex in particular), and short ones are skipped below, but these are certainly titles
+		text = QUOTED_TITLE_REGEX.replace(text) { match ->
+			"'" + titleTokens.tokenFor(match.groupValues[1], "title") + "'"
+		}
+		text = text.replaceAllWhole(titles, "title", titleTokens)
 		if (hideSources) {
-			text = text.replaceAllWhole(sources, "source")
+			text = text.replaceAllWhole(sources, "source", HashMap())
 		}
 		"# Sanitized Futon debug log: titles hidden" + (if (hideSources) ", sources hidden" else "") + "\n" + text
 	}
@@ -151,15 +157,15 @@ class DebugLogViewModel @Inject constructor(
 	 * value always gets the same token. A value is only matched where it isn't part of a longer word, so a short
 	 * title can't match inside other text; longer values are tried first, so one containing another wins.
 	 */
-	private fun String.replaceAllWhole(values: Collection<String>, prefix: String): String {
+	private fun String.replaceAllWhole(values: Collection<String>, prefix: String, tokens: MutableMap<String, String>): String {
 		if (values.isEmpty()) return this
 		val alternation = values.sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }
 		val regex = Regex("(?<![\\p{L}\\p{N}])(?:$alternation)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
-		val tokens = HashMap<String, String>()
-		return regex.replace(this) { match ->
-			tokens.getOrPut(match.value.lowercase()) { "$prefix#${tokens.size + 1}" }
-		}
+		return regex.replace(this) { match -> tokens.tokenFor(match.value, prefix) }
 	}
+
+	private fun MutableMap<String, String>.tokenFor(value: String, prefix: String): String =
+		getOrPut(value.lowercase()) { "$prefix#${size + 1}" }
 
 	private fun WorkInfo.describe(): String = buildString {
 		append(state)
@@ -190,7 +196,10 @@ class DebugLogViewModel @Inject constructor(
 		const val TAG = "Debug"
 		const val SAMPLE_MS = 250L
 		val WORK_TAGS = listOf("tracking", "tracking_oneshot", "tracking_recheck")
-		const val MIN_TITLE_LENGTH = 2
+		const val MIN_TITLE_LENGTH = 3
 		val URL_REGEX = Regex("(https?://[^/\\s]+)[^\\s,)]*")
+
+		// How the tracker lines quote a title: OK 'x' [SOURCE], Compare 'x': ..., Filter 'x' dropped ...
+		val QUOTED_TITLE_REGEX = Regex("'(.+?)'(?=\\s\\[|:\\s|\\sdropped)")
 	}
 }
