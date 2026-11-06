@@ -109,7 +109,12 @@ class DebugLogActivity : BaseActivity<ActivityDebugLogBinding>() {
 		}
 
 		R.id.action_export -> {
-			export()
+			export("futon-debug-log.txt") { DebugLog.exportText() }
+			true
+		}
+
+		R.id.action_export_sanitized -> {
+			showSanitizeDialog()
 			true
 		}
 
@@ -166,10 +171,26 @@ class DebugLogActivity : BaseActivity<ActivityDebugLogBinding>() {
 		Toast.makeText(this, R.string.debug_log_copied, Toast.LENGTH_SHORT).show()
 	}
 
-	private fun export() {
+	private fun showSanitizeDialog() {
+		val hideSources = booleanArrayOf(false)
+		MaterialAlertDialogBuilder(this)
+			.setTitle(getString(R.string.debug_log_export_sanitized))
+			.setMultiChoiceItems(arrayOf(getString(R.string.debug_log_hide_sources)), hideSources) { _, _, checked ->
+				hideSources[0] = checked
+			}
+			.setPositiveButton(R.string.debug_log_export) { _, _ ->
+				export("futon-debug-log-sanitized.txt") { viewModel.exportSanitized(hideSources[0]) }
+			}
+			.setNegativeButton(android.R.string.cancel, null)
+			.show()
+		Toast.makeText(this, R.string.debug_log_export_sanitized_summary, Toast.LENGTH_LONG).show()
+	}
+
+	private fun export(fileName: String, content: suspend () -> String) {
 		lifecycleScope.launch {
+			val text = content()
 			val file = withContext(Dispatchers.IO) {
-				File(cacheDir, "futon-debug-log.txt").apply { writeText(DebugLog.exportText()) }
+				File(cacheDir, fileName).apply { writeText(text) }
 			}
 			val uri = FileProvider.getUriForFile(this@DebugLogActivity, "$packageName.files", file)
 			val intent = Intent(Intent.ACTION_SEND)

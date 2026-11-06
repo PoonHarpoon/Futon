@@ -20,6 +20,11 @@
 		app:showAsAction="never" />
 
 	<item
+		android:id="@+id/action_export_sanitized"
+		android:title="@string/debug_log_export_sanitized"
+		app:showAsAction="never" />
+
+	<item
 		android:id="@+id/action_clear"
 		android:title="@string/debug_log_clear"
 		app:showAsAction="never" />

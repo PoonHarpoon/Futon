@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.withContext
 import io.github.landwarderer.futon.core.db.MangaDatabase
 import io.github.landwarderer.futon.core.model.MangaSource
 import io.github.landwarderer.futon.core.prefs.AppSettings
@@ -120,6 +121,46 @@ class DebugLogViewModel @Inject constructor(
 
 	fun clear() = DebugLog.clear()
 
+	/**
+	 * The full log with every manga title known to the database replaced by a stable token (`title#1`), and URLs
+	 * cut down to their host, since their path usually carries the title. With [hideSources], source names and
+	 * hosts are replaced as well (`source#1`, `<url>`).
+	 */
+	suspend fun exportSanitized(hideSources: Boolean): String = withContext(Dispatchers.IO) {
+		val titles = LinkedHashSet<String>()
+		val sources = LinkedHashSet<String>()
+		db.openHelper.readableDatabase.query("SELECT title, source FROM manga").use { cursor ->
+			while (cursor.moveToNext()) {
+				cursor.getString(0)?.takeIf { it.length >= MIN_TITLE_LENGTH }?.let(titles::add)
+				cursor.getString(1)?.let(sources::add)
+			}
+		}
+		var text = DebugLog.exportText()
+		text = URL_REGEX.replace(text) { match ->
+			if (hideSources) "<url>" else "${match.groupValues[1]}/<redacted>"
+		}
+		text = text.replaceAllWhole(titles, "title")
+		if (hideSources) {
+			text = text.replaceAllWhole(sources, "source")
+		}
+		"# Sanitized Futon debug log: titles hidden" + (if (hideSources) ", sources hidden" else "") + "\n" + text
+	}
+
+	/**
+	 * Replaces every one of [values] in a single pass with `prefix#N`, numbered by first appearance, so the same
+	 * value always gets the same token. A value is only matched where it isn't part of a longer word, so a short
+	 * title can't match inside other text; longer values are tried first, so one containing another wins.
+	 */
+	private fun String.replaceAllWhole(values: Collection<String>, prefix: String): String {
+		if (values.isEmpty()) return this
+		val alternation = values.sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }
+		val regex = Regex("(?<![\\p{L}\\p{N}])(?:$alternation)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+		val tokens = HashMap<String, String>()
+		return regex.replace(this) { match ->
+			tokens.getOrPut(match.value.lowercase()) { "$prefix#${tokens.size + 1}" }
+		}
+	}
+
 	private fun WorkInfo.describe(): String = buildString {
 		append(state)
 		append(" id=").append(id)
@@ -149,5 +190,7 @@ class DebugLogViewModel @Inject constructor(
 		const val TAG = "Debug"
 		const val SAMPLE_MS = 250L
 		val WORK_TAGS = listOf("tracking", "tracking_oneshot", "tracking_recheck")
+		const val MIN_TITLE_LENGTH = 2
+		val URL_REGEX = Regex("(https?://[^/\\s]+)[^\\s,)]*")
 	}
 }
