@@ -94,6 +94,12 @@ class DebugLogSanitizerTest {
 	}
 
 	@Test
+	fun `one-word titles only match with their own capitalization`() {
+		val out = sanitize("Recheck deferred: another check is running\nerror loading Another", titles = listOf("Another"))
+		assertEquals("Recheck deferred: another check is running\nerror loading title#1", out)
+	}
+
+	@Test
 	fun `titles are matched across unicode forms but not inside longer words`() {
 		val out = sanitize("ＯＮＥ ＰＩＥＣＥ and Pokémon and नमस्ते", titles = listOf("One Piece", "Pokémon", "नमस"))
 		assertEquals("title#1 and title#2 and नमस्ते", out)

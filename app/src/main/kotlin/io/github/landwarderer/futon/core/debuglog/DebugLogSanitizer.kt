@@ -55,7 +55,10 @@ internal class DebugLogSanitizer(
 		text = LEGACY_BRANCH_REGEX.replace(text) { branchTokens.tokenFor(it.value, "branch") }
 		text = LEGACY_CHAPTERS_REGEX.replace(text) { "${it.groupValues[1]} <chapter names redacted>" }
 		// Every known title, wherever it appears
-		text = text.replaceWhole(knownTitles, titleTokens, "title")
+		// A one-word title is often an ordinary word too ("Another"): only match it with its own capitalization
+		val (singleWord, multiWord) = knownTitles.partition { title -> title.none { it.isWhitespace() } }
+		text = text.replaceWhole(multiWord, titleTokens, "title")
+		text = text.replaceWhole(singleWord, titleTokens, "title", ignoreCase = false)
 		text = ID_REGEX.replace(text) { idTokens.tokenFor(it.value, "id") }
 		text = DEVICE_REGEX.replace(text, "device=<redacted>")
 		if (hideSources) {
@@ -82,12 +85,13 @@ internal class DebugLogSanitizer(
 		tokens: MutableMap<String, String>,
 		prefix: String,
 		numbered: Boolean = true,
+		ignoreCase: Boolean = true,
 	): String {
-		val lower = lowercase()
-		val present = values.filter { it.isNotEmpty() && lower.contains(it.lowercase()) }
+		val present = values.filter { it.isNotEmpty() && contains(it, ignoreCase) }
 		if (present.isEmpty()) return this
 		val alternation = present.sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }
-		val regex = Regex("(?<![\\p{L}\\p{M}\\p{N}])(?:$alternation)(?![\\p{L}\\p{M}\\p{N}])", RegexOption.IGNORE_CASE)
+		val pattern = "(?<![\\p{L}\\p{M}\\p{N}])(?:$alternation)(?![\\p{L}\\p{M}\\p{N}])"
+		val regex = if (ignoreCase) Regex(pattern, RegexOption.IGNORE_CASE) else Regex(pattern)
 		return regex.replace(this) { match ->
 			if (numbered) tokens.tokenFor(match.value, prefix) else prefix
 		}
