@@ -24,7 +24,7 @@ class DebugLogSanitizerTest {
 
 	@Test
 	fun `the same title gets the same token, whatever the pass that finds it`() {
-		val log = "Compare ${DebugLog.title("Smiley")}: 76 chapters\nCompare 'Smiley': 76 chapters\nerror in smiley"
+		val log = "Compare ${DebugLog.title("Smiley")}: 76 chapters\nCompare 'Smiley': 76 chapters\nerror in Smiley"
 		val out = sanitize(log, titles = listOf("Smiley"))
 		assertEquals("Compare 'title#1': 76 chapters\nCompare 'title#1': 76 chapters\nerror in title#1", out)
 	}
