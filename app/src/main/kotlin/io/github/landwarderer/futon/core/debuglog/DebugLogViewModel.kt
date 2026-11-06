@@ -107,7 +107,7 @@ class DebugLogViewModel @Inject constructor(
 			val ago = if (t.track.lastCheckTime == 0L) "never" else "${(now - t.track.lastCheckTime) / 60_000}m ago"
 			DebugLog.log(
 				TAG,
-				"  '${t.manga.title}' [${t.manga.source}] new=${t.track.newChapters} checked=$ago " +
+				"  ${DebugLog.title(t.manga.title)} [${t.manga.source}] new=${t.track.newChapters} checked=$ago " +
 					"result=${resultName(t.track.lastResult)} lastChapterId=${t.track.lastChapterId} " +
 					"lastChapterDate=${Instant.ofEpochMilli(t.track.lastChapterDate)}" +
 					(t.track.lastError?.let { " error=${it.take(120)}" } ?: ""),
@@ -121,51 +121,25 @@ class DebugLogViewModel @Inject constructor(
 
 	fun clear() = DebugLog.clear()
 
-	/**
-	 * The full log with every manga title known to the database replaced by a stable token (`title#1`), and URLs
-	 * cut down to their host, since their path usually carries the title. With [hideSources], source names and
-	 * hosts are replaced as well (`source#1`, `<url>`).
-	 */
+	/** The full log, sanitized by [DebugLogSanitizer] with the titles and sources the database knows. */
 	suspend fun exportSanitized(hideSources: Boolean): String = withContext(Dispatchers.IO) {
-		val titles = LinkedHashSet<String>()
-		val sources = LinkedHashSet<String>()
-		db.openHelper.readableDatabase.query("SELECT title, source FROM manga").use { cursor ->
+		val titles = ArrayList<String>()
+		val sources = HashSet<String>()
+		val sqlite = db.openHelper.readableDatabase
+		sqlite.query("SELECT title, alt_title, source FROM manga").use { cursor ->
 			while (cursor.moveToNext()) {
-				cursor.getString(0)?.takeIf { it.length >= MIN_TITLE_LENGTH }?.let(titles::add)
-				cursor.getString(1)?.let(sources::add)
+				cursor.getString(0)?.let(titles::add)
+				cursor.getString(1)?.split(ALT_TITLE_SEPARATORS)?.let(titles::addAll)
+				cursor.getString(2)?.let(sources::add)
 			}
 		}
-		var text = DebugLog.exportText()
-		text = URL_REGEX.replace(text) { match ->
-			if (hideSources) "<url>" else "${match.groupValues[1]}/<redacted>"
+		sqlite.query("SELECT source FROM sources").use { cursor ->
+			while (cursor.moveToNext()) {
+				cursor.getString(0)?.let(sources::add)
+			}
 		}
-		val titleTokens = HashMap<String, String>()
-		// Titles as the log quotes them first: a title fetched during a check may differ from the one in the
-		// database (MangaDex in particular), and short ones are skipped below, but these are certainly titles
-		text = QUOTED_TITLE_REGEX.replace(text) { match ->
-			"'" + titleTokens.tokenFor(match.groupValues[1], "title") + "'"
-		}
-		text = text.replaceAllWhole(titles, "title", titleTokens)
-		if (hideSources) {
-			text = text.replaceAllWhole(sources, "source", HashMap())
-		}
-		"# Sanitized Futon debug log: titles hidden" + (if (hideSources) ", sources hidden" else "") + "\n" + text
+		DebugLogSanitizer(titles, sources, hideSources).sanitize(DebugLog.exportText(raw = true))
 	}
-
-	/**
-	 * Replaces every one of [values] in a single pass with `prefix#N`, numbered by first appearance, so the same
-	 * value always gets the same token. A value is only matched where it isn't part of a longer word, so a short
-	 * title can't match inside other text; longer values are tried first, so one containing another wins.
-	 */
-	private fun String.replaceAllWhole(values: Collection<String>, prefix: String, tokens: MutableMap<String, String>): String {
-		if (values.isEmpty()) return this
-		val alternation = values.sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }
-		val regex = Regex("(?<![\\p{L}\\p{N}])(?:$alternation)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
-		return regex.replace(this) { match -> tokens.tokenFor(match.value, prefix) }
-	}
-
-	private fun MutableMap<String, String>.tokenFor(value: String, prefix: String): String =
-		getOrPut(value.lowercase()) { "$prefix#${size + 1}" }
 
 	private fun WorkInfo.describe(): String = buildString {
 		append(state)
@@ -196,10 +170,6 @@ class DebugLogViewModel @Inject constructor(
 		const val TAG = "Debug"
 		const val SAMPLE_MS = 250L
 		val WORK_TAGS = listOf("tracking", "tracking_oneshot", "tracking_recheck")
-		const val MIN_TITLE_LENGTH = 3
-		val URL_REGEX = Regex("(https?://[^/\\s]+)[^\\s,)]*")
-
-		// How the tracker lines quote a title: OK 'x' [SOURCE], Compare 'x': ..., Filter 'x' dropped ...
-		val QUOTED_TITLE_REGEX = Regex("'(.+?)'(?=\\s\\[|:\\s|\\sdropped)")
+		val ALT_TITLE_SEPARATORS = Regex("[\\n|;]")
 	}
 }

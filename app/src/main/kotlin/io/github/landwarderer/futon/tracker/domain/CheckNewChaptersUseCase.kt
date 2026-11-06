@@ -66,7 +66,7 @@ class CheckNewChaptersUseCase @Inject constructor(
 			val lastNewChapterIndex = chapters.size - effectiveNew
 			DebugLog.log(
 				LOG_TAG,
-				"Reader credit '${manga.title}': reading index $chapterIndex of ${chapters.size}, track.new=${track.newChapters} " +
+				"Reader credit ${DebugLog.title(manga.title)}: reading index $chapterIndex of ${chapters.size}, track.new=${track.newChapters} " +
 					"prevLastIndex=$prevLastIndex addedSinceLastTrack=$addedSinceLastTrack effectiveNew=$effectiveNew",
 			)
 			val tracking = MangaTracking(
@@ -81,11 +81,11 @@ class CheckNewChaptersUseCase @Inject constructor(
 					else -> effectiveNew
 				},
 			)
-			DebugLog.log(LOG_TAG, "Reader credit '${manga.title}': saving new=${tracking.newChapters} lastChapterId=${tracking.lastChapterId}")
+			DebugLog.log(LOG_TAG, "Reader credit ${DebugLog.title(manga.title)}: saving new=${tracking.newChapters} lastChapterId=${tracking.lastChapterId}")
 			repository.mergeWith(tracking)
 		}.onFailure { e ->
 			e.printStackTraceDebug("CheckNewChaptersUseCase::invoke")
-			DebugLog.log(LOG_TAG, "Reader credit '${manga.title}' failed", e)
+			DebugLog.log(LOG_TAG, "Reader credit ${DebugLog.title(manga.title)} failed", e)
 		}.isSuccess
 	}
 
@@ -95,7 +95,7 @@ class CheckNewChaptersUseCase @Inject constructor(
 		if (dbTrack != null && dbTrack.lastChapterId != track.lastChapterId) {
 			DebugLog.log(
 				LOG_TAG,
-				"STALE SNAPSHOT '${track.manga.title}': batch lastChapterId=${track.lastChapterId} new=${track.newChapters}, " +
+				"STALE SNAPSHOT ${DebugLog.title(track.manga.title)}: batch lastChapterId=${track.lastChapterId} new=${track.newChapters}, " +
 					"DB now lastChapterId=${dbTrack.lastChapterId} new=${dbTrack.newChapters}",
 			)
 		}
@@ -106,7 +106,7 @@ class CheckNewChaptersUseCase @Inject constructor(
 		val chapters = details.getChapters(branch)
 		DebugLog.log(
 			LOG_TAG,
-			"Compare '${details.title}': ${chapters.size} chapters, branch=$branch, " +
+			"Compare ${DebugLog.title(details.title)}: ${chapters.size} chapters, branch=${DebugLog.branch(branch)}, " +
 				"track(new=${track.newChapters} lastId=${track.lastChapterId} at index ${chapters.indexOfFirst { it.id == track.lastChapterId }}, " +
 				"lastDate=${track.lastChapterDate}, empty=${track.isEmpty()}) history(chapterId=$historyChapterId at index " +
 				"${chapters.indexOfFirst { it.id == historyChapterId }}) -> new=${updates.newChapters.size} valid=${updates.isValid}",
@@ -283,10 +283,10 @@ class CheckNewChaptersUseCase @Inject constructor(
 		if (filtered.size != newChapters.size) {
 			DebugLog.log(
 				LOG_TAG,
-				"Filter '${manga.title}' dropped ${newChapters.size - filtered.size} of ${newChapters.size} new chapters " +
+				"Filter ${DebugLog.title(manga.title)} dropped ${newChapters.size - filtered.size} of ${newChapters.size} new chapters " +
 					"(readChapters=$readChapters, own history=${history.getReadChaptersCount(chapters)}, " +
 					"similar titles=${similarHistories.size}): " + (newChapters - filtered.toSet()).joinToString(limit = 5) { c ->
-					"${c.title ?: c.number} (${if (!c.isRecentEnough(minChapterDate)) "stale" else "already read"})"
+					"${DebugLog.chapter(c.number, c.title)} (${if (!c.isRecentEnough(minChapterDate)) "stale" else "already read"})"
 				},
 			)
 		}

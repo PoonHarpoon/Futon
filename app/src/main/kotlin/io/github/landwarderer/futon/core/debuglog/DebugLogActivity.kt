@@ -29,10 +29,12 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
 import io.github.landwarderer.futon.R
 import io.github.landwarderer.futon.core.ui.BaseActivity
 import io.github.landwarderer.futon.core.util.ext.consumeAllSystemBarsInsets
 import io.github.landwarderer.futon.core.util.ext.observe
+import io.github.landwarderer.futon.core.util.ext.printStackTraceDebug
 import io.github.landwarderer.futon.core.util.ext.systemBarsInsets
 import io.github.landwarderer.futon.databinding.ActivityDebugLogBinding
 import java.io.File
@@ -104,7 +106,7 @@ class DebugLogActivity : BaseActivity<ActivityDebugLogBinding>() {
 		}
 
 		R.id.action_copy -> {
-			copy(adapter.currentList.joinToString("\n") { it.format() })
+			copy(adapter.currentList.joinToString("\n") { it.readable() })
 			true
 		}
 
@@ -148,7 +150,7 @@ class DebugLogActivity : BaseActivity<ActivityDebugLogBinding>() {
 	}
 
 	private fun showEntry(entry: DebugLog.Entry) {
-		val text = entry.format()
+		val text = entry.readable()
 		val view = TextView(this).apply {
 			setText(text)
 			setTextIsSelectable(true)
@@ -188,9 +190,18 @@ class DebugLogActivity : BaseActivity<ActivityDebugLogBinding>() {
 
 	private fun export(fileName: String, content: suspend () -> String) {
 		lifecycleScope.launch {
-			val text = content()
-			val file = withContext(Dispatchers.IO) {
-				File(cacheDir, fileName).apply { writeText(text) }
+			Toast.makeText(this@DebugLogActivity, R.string.debug_log_preparing, Toast.LENGTH_SHORT).show()
+			// Nothing is written unless the content was produced in full: a failed sanitization must not
+			// leave an unsanitized file to share
+			val file = runCatchingCancellable {
+				withContext(Dispatchers.IO) {
+					val text = content()
+					File(cacheDir, fileName).apply { writeText(text) }
+				}
+			}.getOrElse { e ->
+				e.printStackTraceDebug("DebugLogActivity::export")
+				Toast.makeText(this@DebugLogActivity, e.toString(), Toast.LENGTH_LONG).show()
+				return@launch
 			}
 			val uri = FileProvider.getUriForFile(this@DebugLogActivity, "$packageName.files", file)
 			val intent = Intent(Intent.ACTION_SEND)
@@ -222,15 +233,18 @@ class DebugLogActivity : BaseActivity<ActivityDebugLogBinding>() {
 
 		override fun onBindViewHolder(holder: EntryHolder, position: Int) {
 			val entry = getItem(position)
-			holder.textView.text = if (entry.tag == DebugLog.RESTORED_TAG) entry.message else entry.format()
+			holder.textView.text = entry.readable()
 			holder.textView.alpha = if (entry.tag == DebugLog.RESTORED_TAG) 0.6f else 1f
 			holder.textView.setOnClickListener { showEntry(entry) }
 			holder.textView.setOnLongClickListener {
-				copy(if (entry.tag == DebugLog.RESTORED_TAG) entry.message else entry.format())
+				copy(entry.readable())
 				true
 			}
 		}
 	}
+
+	private fun DebugLog.Entry.readable(): String =
+		DebugLog.display(if (tag == DebugLog.RESTORED_TAG) message else format())
 
 	private class EntryHolder(val textView: TextView) : RecyclerView.ViewHolder(textView)
 

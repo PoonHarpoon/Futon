@@ -72,7 +72,7 @@ object DebugLog {
 				if (buffer.size > MAX_ENTRIES) buffer.removeFirst()
 			}
 		}
-		Log.d("DebugLog/$tag", message)
+		Log.d("DebugLog/$tag", display(message))
 		versionFlow.value = entry.seq
 		writer.execute { append(entry) }
 	}
@@ -83,13 +83,38 @@ object DebugLog {
 
 	fun snapshot(): List<Entry> = synchronized(lock) { buffer.toList() }
 
-	/** Everything still on disk (both files), for exporting: may hold more than the in-memory buffer. */
-	fun exportText(): String {
-		val logDir = dir ?: return snapshot().joinToString("\n") { it.format() }
-		return runCatching {
-			writer.submit { }.get() // flush pending writes
-			(previousFile(logDir).readLinesOrEmpty() + currentFile(logDir).readLinesOrEmpty()).joinToString("\n")
-		}.getOrElse { snapshot().joinToString("\n") { it.format() } }
+	/*
+	 * Values that identify what the user reads are marked where they are logged, so the sanitized export can
+	 * replace them reliably, however they are spelled. Everywhere else the markers are stripped by [display].
+	 */
+
+	/** A manga title, quoted. */
+	fun title(value: String?): String = "'$MARK_START$KIND_TITLE:$value$MARK_END'"
+
+	/** A branch: often a scanlation group, which points to the series. */
+	fun branch(value: String?): String = if (value == null) "null" else "$MARK_START$KIND_BRANCH:$value$MARK_END"
+
+	/** A chapter: its number is kept, its name (which may hold the series name or spoilers) is marked. */
+	fun chapter(number: Float, name: String?): String {
+		val num = if (number > 0f) "#" + number.toString().removeSuffix(".0") else "#?"
+		return if (name.isNullOrBlank()) num else "$num $MARK_START$KIND_CHAPTER:$name$MARK_END"
+	}
+
+	/** [text] without the markers, for reading. */
+	fun display(text: String): String = if (MARK_START !in text) text else MARK_REGEX.replace(text) { it.groupValues[2] }
+
+	/**
+	 * Everything still on disk (both files), for exporting: may hold more than the in-memory buffer.
+	 * [raw] keeps the markers, for the sanitizer.
+	 */
+	fun exportText(raw: Boolean = false): String {
+		val text = dir?.let { logDir ->
+			runCatching {
+				writer.submit { }.get() // flush pending writes
+				(previousFile(logDir).readLinesOrEmpty() + currentFile(logDir).readLinesOrEmpty()).joinToString("\n")
+			}.getOrNull()
+		} ?: snapshot().joinToString("\n") { it.format() }
+		return if (raw) text else display(text)
 	}
 
 	fun clear() {
@@ -125,6 +150,14 @@ object DebugLog {
 	private val TIME_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss.SSS").withZone(ZoneId.systemDefault())
 
 	const val RESTORED_TAG = "~"
+	const val MARK_START = "\u27E6"
+	const val MARK_END = "\u27E7"
+	const val KIND_TITLE = "t"
+	const val KIND_BRANCH = "b"
+	const val KIND_CHAPTER = "c"
+
+	/** A marked value: kind in group 1, value in group 2. */
+	val MARK_REGEX = Regex("\u27E6([tbc]):(.*?)\u27E7")
 	private const val DIR_NAME = "debug_log"
 	private const val MAX_ENTRIES = 5_000
 	private const val MAX_FILE_SIZE = 2L * 1024 * 1024

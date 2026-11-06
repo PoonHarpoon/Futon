@@ -16,9 +16,10 @@
 	<string name="debug_log_copy_shown" translatable="false">Copy shown entries</string>
 	<string name="debug_log_export" translatable="false">Export full log</string>
 	<string name="debug_log_export_sanitized" translatable="false">Export sanitized log</string>
-	<string name="debug_log_export_sanitized_summary" translatable="false">Manga titles are always replaced with tokens like title#1, and links are cut down to their site.</string>
+	<string name="debug_log_export_sanitized_summary" translatable="false">Titles, branches and chapter names are replaced with tokens like title#1, and links are cut down to their site. Notes you add with Mark are kept as typed.</string>
 	<string name="debug_log_hide_sources" translatable="false">Also hide source names and sites</string>
 	<string name="debug_log_clear" translatable="false">Clear log</string>
 	<string name="debug_log_copied" translatable="false">Copied to clipboard</string>
+	<string name="debug_log_preparing" translatable="false">Preparing the log…</string>
 	<string name="debug_log_entry" translatable="false">Log entry</string>
 </resources>

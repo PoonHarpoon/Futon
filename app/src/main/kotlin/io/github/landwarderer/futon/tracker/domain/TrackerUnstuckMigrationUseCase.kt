@@ -138,7 +138,7 @@ class TrackerUnstuckMigrationUseCase @Inject constructor(
 		if (historyIndex < 0) return
 		val creditable = chapters.lastIndex - historyIndex
 		if (creditable <= 0) return
-		DebugLog.log("Tracker", "Unstuck migration credits '${details.title}' [${details.source.name}]: $creditable new (history index $historyIndex of ${chapters.size})")
+		DebugLog.log("Tracker", "Unstuck migration credits ${DebugLog.title(details.title)} [${details.source.name}]: $creditable new (history index $historyIndex of ${chapters.size})")
 		val lastChapter = chapters.last()
 		trackingRepository.mergeWith(
 			MangaTracking(

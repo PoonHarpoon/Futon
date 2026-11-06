@@ -174,10 +174,10 @@ class TrackWorker @AssistedInject constructor(
 	}
 
 	private fun MangaUpdates.describe(): String = when (this) {
-		is MangaUpdates.Success -> "OK '${manga.title}' [${manga.source.name}] new=${newChapters.size} valid=$isValid branch=$branch" +
-			(if (newChapters.isNotEmpty()) " -> ${newChapters.joinToString(limit = 5) { it.title ?: it.number.toString() }}" else "")
+		is MangaUpdates.Success -> "OK ${DebugLog.title(manga.title)} [${manga.source.name}] new=${newChapters.size} valid=$isValid branch=${DebugLog.branch(branch)}" +
+			(if (newChapters.isNotEmpty()) " -> ${newChapters.joinToString(limit = 5) { DebugLog.chapter(it.number, it.title) }}" else "")
 
-		is MangaUpdates.Failure -> "FAIL '${manga.title}' [${manga.source.name}] ${error?.javaClass?.simpleName}: ${error?.message?.take(200)}" +
+		is MangaUpdates.Failure -> "FAIL ${DebugLog.title(manga.title)} [${manga.source.name}] ${error?.javaClass?.simpleName}: ${error?.message?.take(200)}" +
 			(if (isSourceBlocked()) " (blocks source)" else "")
 	}
 
@@ -242,7 +242,7 @@ class TrackWorker @AssistedInject constructor(
 					// The source permit comes first: a busy source must not hold the global slots while it waits
 					sourceSemaphore.withPermit {
 						if (blockedSources.containsKey(source)) {
-							DebugLog.log(LOG_TAG, "SKIP '${track.manga.title}' [${source.name}]: source blocked earlier in this run")
+							DebugLog.log(LOG_TAG, "SKIP ${DebugLog.title(track.manga.title)} [${source.name}]: source blocked earlier in this run")
 							skipped.getOrPut(source) { Collections.synchronizedList(ArrayList()) }.add(track.manga.id)
 							send(null)
 							return@withPermit
@@ -327,7 +327,7 @@ class TrackWorker @AssistedInject constructor(
 			val wait = retryDelay + retryDelay / 10 // the server's wait plus 10%, so the first retry isn't early
 			DebugLog.log(
 				LOG_TAG,
-				"Rate limited on '${track.manga.title}' [${track.manga.source.name}]: server asked ${retryDelay / 1000}s, " +
+				"Rate limited on ${DebugLog.title(track.manga.title)} [${track.manga.source.name}]: server asked ${retryDelay / 1000}s, " +
 					"pacing the source, retry $retries in ${wait / 1000}s (waited ${pacer.totalWaitMs / 1000}s so far)",
 			)
 			pacer.mutex.withLock {
