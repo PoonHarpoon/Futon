@@ -37,6 +37,7 @@ import io.github.landwarderer.futon.core.model.getTitle
 import io.github.landwarderer.futon.core.model.isNsfw
 import io.github.landwarderer.futon.core.nav.AppRouter
 import io.github.landwarderer.futon.core.parser.favicon.faviconUri
+import io.github.landwarderer.futon.core.debuglog.DebugLog
 import io.github.landwarderer.futon.core.prefs.SourceSettings
 import io.github.landwarderer.futon.core.util.ext.checkNotificationPermission
 import io.github.landwarderer.futon.core.util.ext.getNotificationIconSize
@@ -86,12 +87,20 @@ class CaptchaHandler @Inject constructor(
 	 * the solver is an Activity and may only run for an explicit user action.
 	 */
 	@CheckResult
-	suspend fun handle(exception: CloudFlareException, tryAutoResolve: Boolean): Boolean =
-		handleException(exception.source, exception, notify = true, tryAutoResolve = tryAutoResolve)
+	suspend fun handle(exception: CloudFlareException, tryAutoResolve: Boolean): Boolean {
+		DebugLog.log(
+			LOG_TAG,
+			"Required for ${exception.source.name} (${exception.javaClass.simpleName}) at ${exception.url}, " +
+				"tryAutoResolve=$tryAutoResolve",
+		)
+		return handleException(exception.source, exception, notify = true, tryAutoResolve = tryAutoResolve)
+	}
 
 	/** Called once the captcha of [source] has been solved. */
 	suspend fun discard(source: MangaSource) {
+		DebugLog.log(LOG_TAG, "Recording solve for ${source.name}")
 		handleException(source, null, notify = true, tryAutoResolve = false)
+		DebugLog.log(LOG_TAG, "Solve recorded for ${source.name}, notifying listeners")
 		solvedSourcesFlow.emit(source)
 	}
 
@@ -305,6 +314,7 @@ class CaptchaHandler @Inject constructor(
 
 		private val suppressCaptchaKey = Extras.Key(false)
 
+		private const val LOG_TAG = "Captcha"
 		private const val CHANNEL_ID = "captcha"
 		private const val TAG = CHANNEL_ID
 		private const val GROUP_CAPTCHA = "io.github.landwarderer.futon.CAPTCHA"

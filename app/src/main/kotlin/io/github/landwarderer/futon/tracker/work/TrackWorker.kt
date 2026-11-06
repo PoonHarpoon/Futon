@@ -33,6 +33,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import io.github.landwarderer.futon.BuildConfig
 import io.github.landwarderer.futon.R
+import io.github.landwarderer.futon.core.debuglog.DebugLog
 import io.github.landwarderer.futon.core.db.MangaDatabase
 import io.github.landwarderer.futon.core.model.MangaSource
 import io.github.landwarderer.futon.core.exceptions.resolve.CaptchaHandler
@@ -110,31 +111,62 @@ class TrackWorker @AssistedInject constructor(
 	private var isStorageQuotaReached: Boolean? = null
 
 	override suspend fun doWork(): Result {
+		val kind = when {
+			TAG_RECHECK in tags -> "recheck"
+			TAG_ONESHOT in tags -> "manual"
+			else -> "periodic"
+		}
+		val requestedAt = inputData.getLong(KEY_REQUESTED_AT, 0L)
+		DebugLog.log(
+			LOG_TAG,
+			"Worker START kind=$kind id=$id attempt=$runAttemptCount tags=${tags.filterNot { it.contains('.') }}" +
+				(if (requestedAt > 0L) " requestedAgo=${(System.currentTimeMillis() - requestedAt) / 1000}s" else "") +
+				" freq=${settings.trackerFrequencyFactor} enabled=${settings.isTrackerEnabled}",
+		)
 		if (isExpiredManualRun()) {
 			// A manual check the system stopped (job time limit, doze, process death) is put back in the
 			// queue by WorkManager and may only run again hours later. Nobody is waiting for it any more,
 			// and with the tracker set to manual it looks like an automatic check: drop it instead.
+			DebugLog.log(LOG_TAG, "Worker SKIP id=$id: manual run expired")
 			return Result.success()
 		}
 		notificationHelper.updateChannels()
-		trySetForeground()
+		val isForeground = trySetForeground()
 		// Full run when manually triggered (TAG_ONESHOT), regardless of whether the
 		// foreground service promotion succeeded - Android may refuse the promotion
 		// on certain OEMs, but the user explicitly asked for an immediate full check.
 		val isFullRun = TAG_ONESHOT in tags
 		val recheckSource = inputData.getString(KEY_SOURCE)?.let { MangaSource(it) }
+		DebugLog.log(LOG_TAG, "Worker id=$id foreground=$isForeground fullRun=$isFullRun recheckSource=${recheckSource?.name}")
+		val startedAt = System.currentTimeMillis()
 		return try {
-			doWorkImpl(isFullRun = isFullRun, recheckSource = recheckSource)
+			doWorkImpl(isFullRun = isFullRun, recheckSource = recheckSource).also {
+				DebugLog.log(LOG_TAG, "Worker END id=$id result=$it after ${(System.currentTimeMillis() - startedAt) / 1000}s")
+			}
 		} catch (e: CancellationException) {
+			DebugLog.log(
+				LOG_TAG,
+				"Worker CANCELLED id=$id after ${(System.currentTimeMillis() - startedAt) / 1000}s stopped=$isStopped" +
+					(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) " stopReason=$stopReason" else ""),
+			)
 			throw e
 		} catch (e: Throwable) {
 			e.printStackTraceDebug("TrackWorker::doWork")
+			DebugLog.log(LOG_TAG, "Worker FAILED id=$id", e)
 			Result.failure()
 		} finally {
 			withContext(NonCancellable) {
 				notificationManager.cancel(WORKER_NOTIFICATION_ID)
 			}
 		}
+	}
+
+	private fun MangaUpdates.describe(): String = when (this) {
+		is MangaUpdates.Success -> "OK '${manga.title}' [${manga.source.name}] new=${newChapters.size} valid=$isValid branch=$branch" +
+			(if (newChapters.isNotEmpty()) " -> ${newChapters.joinToString(limit = 5) { it.title ?: it.number.toString() }}" else "")
+
+		is MangaUpdates.Failure -> "FAIL '${manga.title}' [${manga.source.name}] ${error?.javaClass?.simpleName}: ${error?.message?.take(200)}" +
+			(if (isSourceBlocked()) " (blocks source)" else "")
 	}
 
 	private fun isExpiredManualRun(): Boolean {
@@ -145,6 +177,7 @@ class TrackWorker @AssistedInject constructor(
 
 	private suspend fun doWorkImpl(isFullRun: Boolean, recheckSource: MangaSource?): Result {
 		if (!settings.isTrackerEnabled) {
+			DebugLog.log(LOG_TAG, "Tracker disabled, nothing to do")
 			return Result.success()
 		}
 		val tracks = if (recheckSource != null) {
@@ -153,11 +186,17 @@ class TrackWorker @AssistedInject constructor(
 		} else {
 			getTracksUseCase(if (isFullRun) Int.MAX_VALUE else BATCH_SIZE)
 		}
+		DebugLog.log(
+			LOG_TAG,
+			"Picked ${tracks.size} tracks: " + tracks.groupingBy { it.manga.source.name }.eachCount().entries
+				.joinToString { "${it.key}=${it.value}" },
+		)
 		if (tracks.isEmpty()) {
 			return Result.success()
 		}
 
 		val notifications = checkUpdatesAsync(tracks)
+		DebugLog.log(LOG_TAG, "Posting ${notifications.size} new-chapter notifications")
 		if (notifications.isNotEmpty() && applicationContext.checkNotificationPermission(null)) {
 			val groupNotification = notificationHelper.createGroupNotification(notifications)
 			notifications.forEach { notificationManager.notify(it.tag, it.id, it.notification) }
@@ -183,6 +222,7 @@ class TrackWorker @AssistedInject constructor(
 					// The source permit comes first: a busy source must not hold the global slots while it waits
 					sourceSemaphore.withPermit {
 						if (blockedSources.containsKey(source)) {
+							DebugLog.log(LOG_TAG, "SKIP '${track.manga.title}' [${source.name}]: source blocked earlier in this run")
 							skipped.getOrPut(source) { Collections.synchronizedList(ArrayList()) }.add(track.manga.id)
 							send(null)
 							return@withPermit
@@ -197,6 +237,7 @@ class TrackWorker @AssistedInject constructor(
 								)
 							}
 						}
+						DebugLog.log(LOG_TAG, updates.describe())
 						if (updates is MangaUpdates.Failure && updates.isSourceBlocked()) {
 							blockedSources.putIfAbsent(source, updates)
 						}
@@ -234,6 +275,7 @@ class TrackWorker @AssistedInject constructor(
 		}.toList()
 		for ((source, ids) in skipped) {
 			val failure = blockedSources[source] ?: continue
+			DebugLog.log(LOG_TAG, "Recording ${ids.size} skipped tracks of ${source.name} as ${failure.error?.javaClass?.simpleName}")
 			trackingRepository.saveSkipped(ids, failure)
 		}
 		return notifications
@@ -401,12 +443,14 @@ class TrackWorker @AssistedInject constructor(
 		override suspend fun schedule() {
 			val frequency = settings.trackerFrequencyFactor
 			if (frequency <= 0f) {
+				DebugLog.log(LOG_TAG, "Scheduler: frequency=$frequency (manual), unscheduling periodic work")
 				return unschedule()
 			}
 			val constraints = createConstraints()
 			val runCount = dbProvider.get().getTracksDao().getTracksCount()
 			val runsPerFullCheck = (runCount / BATCH_SIZE.toFloat()).toIntUp().coerceAtLeast(1)
 			val interval = (18 / runsPerFullCheck / frequency).roundToInt().coerceAtLeast(2)
+			DebugLog.log(LOG_TAG, "Scheduler: periodic every ${interval}h (frequency=$frequency, tracks=$runCount, wifiOnly=${settings.isTrackerWifiOnly})")
 			val request = PeriodicWorkRequestBuilder<TrackWorker>(interval.toLong(), TimeUnit.HOURS)
 				.setConstraints(constraints)
 				.addTag(TAG)
@@ -430,6 +474,7 @@ class TrackWorker @AssistedInject constructor(
 		}
 
 		fun startNow() {
+			DebugLog.log(LOG_TAG, "Scheduler: manual check requested")
 			val constraints = Constraints.Builder()
 				.setRequiredNetworkType(NetworkType.CONNECTED)
 				.build()
@@ -447,6 +492,7 @@ class TrackWorker @AssistedInject constructor(
 		 * A re-check already waiting or running for the source is kept.
 		 */
 		fun recheckSource(source: MangaSource) {
+			DebugLog.log(LOG_TAG, "Scheduler: re-check of captcha-blocked tracks requested for ${source.name}")
 			val constraints = Constraints.Builder()
 				.setRequiredNetworkType(NetworkType.CONNECTED)
 				.build()
@@ -473,6 +519,8 @@ class TrackWorker @AssistedInject constructor(
 	}
 
 	private companion object {
+
+		const val LOG_TAG = "Tracker"
 
 		const val WORKER_CHANNEL_ID = "track_worker"
 		const val WORKER_NOTIFICATION_ID = 35

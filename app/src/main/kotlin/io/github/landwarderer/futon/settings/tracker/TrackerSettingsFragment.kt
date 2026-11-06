@@ -27,6 +27,7 @@ import io.github.landwarderer.futon.core.util.ext.setDefaultValueCompat
 import org.koitharu.kotatsu.parsers.util.names
 import io.github.landwarderer.futon.settings.utils.DozeHelper
 import io.github.landwarderer.futon.settings.utils.MultiSummaryProvider
+import io.github.landwarderer.futon.core.debuglog.DebugLogActivity
 import io.github.landwarderer.futon.tracker.ui.debug.TrackerDebugActivity
 import io.github.landwarderer.futon.tracker.work.TrackerNotificationHelper
 import javax.inject.Inject
@@ -116,6 +117,11 @@ class TrackerSettingsFragment :
 
 			AppSettings.KEY_IGNORE_DOZE -> {
 				dozeHelper.startIgnoreDoseActivity()
+				true
+			}
+
+			"debug_log" -> {
+				startActivity(Intent(preference.context, DebugLogActivity::class.java))
 				true
 			}
 

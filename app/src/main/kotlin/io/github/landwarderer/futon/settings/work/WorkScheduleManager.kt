@@ -1,6 +1,7 @@
 package io.github.landwarderer.futon.settings.work
 
 import android.content.SharedPreferences
+import io.github.landwarderer.futon.core.debuglog.DebugLog
 import io.github.landwarderer.futon.core.exceptions.resolve.CaptchaHandler
 import io.github.landwarderer.futon.core.prefs.AppSettings
 import io.github.landwarderer.futon.core.util.ext.processLifecycleScope
@@ -58,12 +59,14 @@ class WorkScheduleManager @Inject constructor(
 			DownloadSchedulerWorker.scheduleAlarm(downloadScheduler.workManager, settings)
 		}
 		processLifecycleScope.launch(Dispatchers.Default) {
+			DebugLog.log("Tracker", "Unstuck migration: done=${settings.isTrackerUnstuckMigrationDone} progressRefreshDone=${settings.isTrackerProgressRefreshDone}")
 			// Recovery for tracks bugged by the previous reader-side new chapters check.
 			// Runs at most once per install (gated by settings flags).
 			trackerUnstuckMigrationProvider.get().runIfNeeded()
 		}
 		processLifecycleScope.launch(Dispatchers.Default) {
 			captchaHandler.solvedSources.collect { source ->
+				DebugLog.log("Captcha", "Solved ${source.name}: tracker enabled=${settings.isTrackerEnabled}, recheck enabled=${settings.isTrackerCaptchaRecheckEnabled}")
 				if (settings.isTrackerEnabled && settings.isTrackerCaptchaRecheckEnabled) {
 					trackerScheduler.recheckSource(source)
 				}

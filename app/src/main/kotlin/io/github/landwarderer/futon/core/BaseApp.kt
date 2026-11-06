@@ -9,6 +9,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.room.InvalidationTracker
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
+import io.github.landwarderer.futon.core.debuglog.DebugLog
 import io.github.landwarderer.futon.BuildConfig
 import io.github.landwarderer.futon.core.db.MangaDatabase
 import io.github.landwarderer.futon.core.os.AppValidator
@@ -70,6 +71,7 @@ open class BaseApp : Application(), Configuration.Provider {
 	override fun onCreate() {
 		super.onCreate()
 		PlatformRegistry.applicationContext = this // TODO replace with OkHttp.initialize
+		DebugLog.init(this)
 		AppCompatDelegate.setDefaultNightMode(settings.theme)
 		// Initialize Sentry only if user has opted in
 		if (settings.isCrashAnalyticsEnabled) {

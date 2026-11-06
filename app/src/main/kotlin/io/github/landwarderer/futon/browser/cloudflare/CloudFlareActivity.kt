@@ -32,6 +32,7 @@ import io.github.landwarderer.futon.browser.BaseBrowserActivity
 import io.github.landwarderer.futon.core.exceptions.CloudFlareProtectedException
 import io.github.landwarderer.futon.core.exceptions.resolve.CaptchaAutoResolveCoordinator
 import io.github.landwarderer.futon.core.exceptions.resolve.CaptchaHandler
+import io.github.landwarderer.futon.core.debuglog.DebugLog
 import io.github.landwarderer.futon.core.model.MangaSource
 import io.github.landwarderer.futon.core.nav.AppRouter
 import io.github.landwarderer.futon.core.network.cookies.MutableCookieJar
@@ -176,6 +177,7 @@ open class CloudFlareActivity : BaseBrowserActivity(), CloudFlareCallback {
 
 	override fun finish() {
 		setResult(pendingResult)
+		DebugLog.log("Captcha", "Captcha screen closed for ${intent?.getStringExtra(AppRouter.KEY_SOURCE)}, result=${if (pendingResult == RESULT_OK) "solved" else "cancelled"}")
 		notifyAutoResolveResult()
 		super.finish()
 	}
@@ -287,6 +289,7 @@ open class CloudFlareActivity : BaseBrowserActivity(), CloudFlareCallback {
 			val state = probeChallengeState()
 			if (state != lastState) {
 				Log.d(TAG, "Challenge state: $state")
+				DebugLog.log("Captcha", "Challenge state for ${intent?.getStringExtra(AppRouter.KEY_SOURCE)}: $state")
 				lastState = state
 			}
 			if (state == CF_STATE_OK) {
@@ -360,6 +363,7 @@ open class CloudFlareActivity : BaseBrowserActivity(), CloudFlareCallback {
 		if (pendingResult == RESULT_OK) return
 		pendingResult = RESULT_OK
 		resolveJob?.cancel()
+		DebugLog.log("Captcha", "Challenge passed for ${intent?.getStringExtra(AppRouter.KEY_SOURCE)}, closing (auto=$isAutoResolve)")
 		rememberAlignedUserAgent()
 		// Persist the final cookie state before the WebView is destroyed and the parser retries.
 		CookieManager.getInstance().flush()

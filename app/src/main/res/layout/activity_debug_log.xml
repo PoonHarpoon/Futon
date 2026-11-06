@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:orientation="vertical">
+
+	<com.google.android.material.appbar.AppBarLayout
+		android:id="@+id/appbar"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:fitsSystemWindows="false">
+
+		<com.google.android.material.appbar.MaterialToolbar
+			android:id="@id/toolbar"
+			android:layout_width="match_parent"
+			android:layout_height="?attr/actionBarSize" />
+
+		<HorizontalScrollView
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:scrollbars="none">
+
+			<com.google.android.material.chip.ChipGroup
+				android:id="@+id/actions"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:paddingHorizontal="@dimen/list_spacing_normal"
+				app:singleLine="true">
+
+				<com.google.android.material.chip.Chip
+					android:id="@+id/action_check_now"
+					style="@style/Widget.Material3.Chip.Assist"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="@string/debug_log_check_now" />
+
+				<com.google.android.material.chip.Chip
+					android:id="@+id/action_recheck_blocked"
+					style="@style/Widget.Material3.Chip.Assist"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="@string/debug_log_recheck_blocked" />
+
+				<com.google.android.material.chip.Chip
+					android:id="@+id/action_work"
+					style="@style/Widget.Material3.Chip.Assist"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="@string/debug_log_work_state" />
+
+				<com.google.android.material.chip.Chip
+					android:id="@+id/action_tracks"
+					style="@style/Widget.Material3.Chip.Assist"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="@string/debug_log_tracks" />
+
+				<com.google.android.material.chip.Chip
+					android:id="@+id/action_settings"
+					style="@style/Widget.Material3.Chip.Assist"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="@string/debug_log_settings" />
+
+				<com.google.android.material.chip.Chip
+					android:id="@+id/action_reschedule"
+					style="@style/Widget.Material3.Chip.Assist"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="@string/debug_log_reschedule" />
+
+				<com.google.android.material.chip.Chip
+					android:id="@+id/action_cancel"
+					style="@style/Widget.Material3.Chip.Assist"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="@string/debug_log_cancel_checks" />
+
+				<com.google.android.material.chip.Chip
+					android:id="@+id/action_mark"
+					style="@style/Widget.Material3.Chip.Assist"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="@string/debug_log_mark" />
+
+			</com.google.android.material.chip.ChipGroup>
+
+		</HorizontalScrollView>
+
+		<EditText
+			android:id="@+id/edit_filter"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginHorizontal="@dimen/list_spacing_normal"
+			android:hint="@string/debug_log_filter"
+			android:importantForAutofill="no"
+			android:inputType="text"
+			android:maxLines="1"
+			android:textSize="14sp" />
+
+	</com.google.android.material.appbar.AppBarLayout>
+
+	<androidx.recyclerview.widget.RecyclerView
+		android:id="@+id/recyclerView"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:clipToPadding="false"
+		android:paddingHorizontal="@dimen/list_spacing_normal"
+		android:scrollbars="vertical"
+		app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+</LinearLayout>

@@ -1,6 +1,7 @@
 package io.github.landwarderer.futon.tracker.domain
 
 import coil3.request.CachePolicy
+import io.github.landwarderer.futon.core.debuglog.DebugLog
 import io.github.landwarderer.futon.core.db.MangaDatabase
 import io.github.landwarderer.futon.core.db.entity.toManga
 import io.github.landwarderer.futon.core.model.isLocal
@@ -106,6 +107,7 @@ class TrackerUnstuckMigrationUseCase @Inject constructor(
 	private suspend fun runImpl() = coroutineScope {
 		val historyDao = db.getHistoryDao()
 		val candidates = findAllTracks().filter { it.track.newChapters == 0 && it.track.lastChapterId != 0L }
+		DebugLog.log("Tracker", "Unstuck migration: ${candidates.size} candidate tracks")
 		val semaphore = Semaphore(MAX_PARALLELISM)
 		for (entry in candidates) {
 			val history = historyDao.find(entry.track.mangaId) ?: continue
@@ -136,6 +138,7 @@ class TrackerUnstuckMigrationUseCase @Inject constructor(
 		if (historyIndex < 0) return
 		val creditable = chapters.lastIndex - historyIndex
 		if (creditable <= 0) return
+		DebugLog.log("Tracker", "Unstuck migration credits '${details.title}' [${details.source.name}]: $creditable new (history index $historyIndex of ${chapters.size})")
 		val lastChapter = chapters.last()
 		trackingRepository.mergeWith(
 			MangaTracking(

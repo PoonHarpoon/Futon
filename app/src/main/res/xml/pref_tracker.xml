@@ -69,6 +69,12 @@
 	<PreferenceCategory android:title="@string/debug">
 
 		<Preference
+			android:key="debug_log"
+			android:persistent="false"
+			android:summary="@string/debug_log_summary"
+			android:title="@string/debug_log" />
+
+		<Preference
 			android:dependency="tracker_enabled"
 			android:key="tracker_debug"
 			android:persistent="false"

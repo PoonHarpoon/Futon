@@ -1,6 +1,7 @@
 package io.github.landwarderer.futon.tracker.domain
 
 import coil3.request.CachePolicy
+import io.github.landwarderer.futon.core.debuglog.DebugLog
 import io.github.landwarderer.futon.core.model.getPreferredBranch
 import io.github.landwarderer.futon.core.model.isLocal
 import io.github.landwarderer.futon.core.parser.CachingMangaRepository
@@ -63,6 +64,11 @@ class CheckNewChaptersUseCase @Inject constructor(
 			val addedSinceLastTrack = if (prevLastIndex >= 0) chapters.lastIndex - prevLastIndex else 0
 			val effectiveNew = track.newChapters + addedSinceLastTrack
 			val lastNewChapterIndex = chapters.size - effectiveNew
+			DebugLog.log(
+				LOG_TAG,
+				"Reader credit '${manga.title}': reading index $chapterIndex of ${chapters.size}, track.new=${track.newChapters} " +
+					"prevLastIndex=$prevLastIndex addedSinceLastTrack=$addedSinceLastTrack effectiveNew=$effectiveNew",
+			)
 			val tracking = MangaTracking(
 				manga = details,
 				lastChapterId = lastChapter?.id ?: 0L,
@@ -75,18 +81,36 @@ class CheckNewChaptersUseCase @Inject constructor(
 					else -> effectiveNew
 				},
 			)
+			DebugLog.log(LOG_TAG, "Reader credit '${manga.title}': saving new=${tracking.newChapters} lastChapterId=${tracking.lastChapterId}")
 			repository.mergeWith(tracking)
 		}.onFailure { e ->
 			e.printStackTraceDebug("CheckNewChaptersUseCase::invoke")
+			DebugLog.log(LOG_TAG, "Reader credit '${manga.title}' failed", e)
 		}.isSuccess
 	}
 
 	private suspend fun invokeImpl(track: MangaTracking): MangaUpdates = runCatchingCancellable {
 		val details = getFullManga(track.manga)
+		val dbTrack = repository.getTrackOrNull(track.manga)
+		if (dbTrack != null && dbTrack.lastChapterId != track.lastChapterId) {
+			DebugLog.log(
+				LOG_TAG,
+				"STALE SNAPSHOT '${track.manga.title}': batch lastChapterId=${track.lastChapterId} new=${track.newChapters}, " +
+					"DB now lastChapterId=${dbTrack.lastChapterId} new=${dbTrack.newChapters}",
+			)
+		}
 		val history = historyRepository.getOne(track.manga)
 		val historyChapterId = history?.chapterId ?: 0L
 		val branch = getBranch(details, track.lastChapterId, historyChapterId)
 		val updates = compare(track, details, branch, historyChapterId)
+		val chapters = details.getChapters(branch)
+		DebugLog.log(
+			LOG_TAG,
+			"Compare '${details.title}': ${chapters.size} chapters, branch=$branch, " +
+				"track(new=${track.newChapters} lastId=${track.lastChapterId} at index ${chapters.indexOfFirst { it.id == track.lastChapterId }}, " +
+				"lastDate=${track.lastChapterDate}, empty=${track.isEmpty()}) history(chapterId=$historyChapterId at index " +
+				"${chapters.indexOfFirst { it.id == historyChapterId }}) -> new=${updates.newChapters.size} valid=${updates.isValid}",
+		)
 		if (updates.isValid && updates.newChapters.isNotEmpty()) {
 			updates.filterReadAndStaleChapters(
 				chapters = details.getChapters(branch),
@@ -250,6 +274,16 @@ class CheckNewChaptersUseCase @Inject constructor(
 		val filtered = newChapters.filter { chapter ->
 			chapter.isAfterReadPosition(chapters, readChapters) && chapter.isRecentEnough(minChapterDate)
 		}
+		if (filtered.size != newChapters.size) {
+			DebugLog.log(
+				LOG_TAG,
+				"Filter '${manga.title}' dropped ${newChapters.size - filtered.size} of ${newChapters.size} new chapters " +
+					"(readChapters=$readChapters, own history=${history.getReadChaptersCount(chapters)}, " +
+					"similar titles=${similarHistories.size}): " + (newChapters - filtered.toSet()).joinToString(limit = 5) { c ->
+					"${c.title ?: c.number} (${if (!c.isRecentEnough(minChapterDate)) "stale" else "already read"})"
+				},
+			)
+		}
 		return if (filtered.size == newChapters.size) this else copy(newChapters = filtered)
 	}
 
@@ -288,6 +322,8 @@ class CheckNewChaptersUseCase @Inject constructor(
 	}
 
 	private companion object {
+
+		const val LOG_TAG = "Tracker"
 
 		const val SIMILAR_HISTORY_LIMIT = 8
 		const val MAX_STALE_CHAPTER_DAYS = 90L

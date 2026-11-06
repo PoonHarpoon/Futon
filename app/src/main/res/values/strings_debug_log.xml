@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="debug_log" translatable="false">Debug log</string>
+	<string name="debug_log_summary" translatable="false">Verbose log of background checks, captchas and scheduling, with actions to trigger them</string>
+	<string name="debug_log_check_now" translatable="false">Check now</string>
+	<string name="debug_log_recheck_blocked" translatable="false">Re-check captcha-blocked</string>
+	<string name="debug_log_work_state" translatable="false">Work queue</string>
+	<string name="debug_log_tracks" translatable="false">Tracks</string>
+	<string name="debug_log_settings" translatable="false">Settings</string>
+	<string name="debug_log_reschedule" translatable="false">Re-run scheduler</string>
+	<string name="debug_log_cancel_checks" translatable="false">Cancel checks</string>
+	<string name="debug_log_mark" translatable="false">Mark</string>
+	<string name="debug_log_mark_hint" translatable="false">What did you just do? (optional)</string>
+	<string name="debug_log_filter" translatable="false">Filter (e.g. Tracker, Captcha, a title)</string>
+	<string name="debug_log_follow" translatable="false">Follow new entries</string>
+	<string name="debug_log_copy_shown" translatable="false">Copy shown entries</string>
+	<string name="debug_log_export" translatable="false">Export full log</string>
+	<string name="debug_log_clear" translatable="false">Clear log</string>
+	<string name="debug_log_copied" translatable="false">Copied to clipboard</string>
+	<string name="debug_log_entry" translatable="false">Log entry</string>
+</resources>

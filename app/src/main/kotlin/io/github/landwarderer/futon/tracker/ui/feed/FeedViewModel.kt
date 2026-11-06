@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
+import io.github.landwarderer.futon.core.debuglog.DebugLog
 import io.github.landwarderer.futon.R
 import io.github.landwarderer.futon.core.prefs.AppSettings
 import io.github.landwarderer.futon.core.prefs.ListMode
@@ -105,6 +106,7 @@ class FeedViewModel @Inject constructor(
 		launchLoadingJob(Dispatchers.IO) {
 			repository.clearLogs()
 			if (clearCounters) {
+				DebugLog.log("Tracker", "Feed: clear counters (rebases tracks onto reading position)")
 				repository.clearCounters()
 			}
 			onActionDone.call(ReversibleAction(R.string.updates_feed_cleared, null))
