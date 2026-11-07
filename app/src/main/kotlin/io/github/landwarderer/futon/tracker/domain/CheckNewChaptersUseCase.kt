@@ -108,7 +108,8 @@ class CheckNewChaptersUseCase @Inject constructor(
 			LOG_TAG,
 			"Compare ${DebugLog.title(details.title)}: ${chapters.size} chapters, branch=${DebugLog.branch(branch)}, " +
 				"track(new=${track.newChapters} lastId=${track.lastChapterId} at index ${chapters.indexOfFirst { it.id == track.lastChapterId }}, " +
-				"lastDate=${track.lastChapterDate}, empty=${track.isEmpty()}) history(chapterId=$historyChapterId at index " +
+				"lastDate=${track.lastChapterDate}, empty=${track.isEmpty()}, lastCheck=${track.lastCheckAge()} ago, " +
+				"picked=${track.selectionReason()}) history(chapterId=$historyChapterId at index " +
 				"${chapters.indexOfFirst { it.id == historyChapterId }}) -> new=${updates.newChapters.size} valid=${updates.isValid}",
 		)
 		if (updates.isValid && updates.newChapters.isNotEmpty()) {

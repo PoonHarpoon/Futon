@@ -61,6 +61,7 @@ import org.koitharu.kotatsu.parsers.util.toIntUp
 import io.github.landwarderer.futon.settings.work.PeriodicWorkScheduler
 import io.github.landwarderer.futon.tracker.domain.CheckNewChaptersUseCase
 import io.github.landwarderer.futon.tracker.domain.GetTracksUseCase
+import io.github.landwarderer.futon.tracker.domain.selectionReason
 import io.github.landwarderer.futon.tracker.domain.TrackingRepository
 import io.github.landwarderer.futon.tracker.domain.model.MangaTracking
 import io.github.landwarderer.futon.tracker.domain.model.MangaUpdates
@@ -210,6 +211,16 @@ class TrackWorker @AssistedInject constructor(
 			"Picked ${tracks.size} tracks: " + tracks.groupingBy { it.manga.source.name }.eachCount().entries
 				.joinToString { "${it.key}=${it.value}" },
 		)
+		if (tracks.isNotEmpty()) {
+			val now = System.currentTimeMillis()
+			DebugLog.log(
+				LOG_TAG,
+				"Picked by reason: " + tracks.groupingBy { it.selectionReason(now) }.eachCount().entries
+					.sortedByDescending { it.value }
+					.joinToString { "${it.key}=${it.value}" } +
+					" (reasons are what made each track eligible; a full manual run takes every eligible track)",
+			)
+		}
 		if (tracks.isEmpty()) {
 			return Result.success()
 		}
