@@ -94,6 +94,18 @@ class DebugLogSanitizerTest {
 	}
 
 	@Test
+	fun `selection info is kept and the title in it is hidden`() {
+		val line = "Compare ${DebugLog.title("Weekly Sweep Hero")}: 584 chapters, branch=${DebugLog.branch("Group")}, " +
+			"track(new=0 lastId=123 at index 61, lastDate=2024-01-23T22:45:10Z, empty=false, lastCheck=8d ago, " +
+			"picked=reading/favourite) history(chapterId=123 at index 61) -> new=522 valid=true\n" +
+			"Picked by reason: weekly-sweep=103, active=60, never-checked=2 (reasons are what made each track eligible)"
+		val out = sanitize(line, titles = listOf("Active", "Weekly Sweep Hero"))
+		assertFalse(out, out.contains("Hero") || out.contains("Group") || out.contains("123"))
+		assertTrue(out, out.contains("lastCheck=8d ago, picked=reading/favourite)"))
+		assertTrue(out, out.contains("Picked by reason: weekly-sweep=103, active=60, never-checked=2"))
+	}
+
+	@Test
 	fun `one-word titles only match with their own capitalization`() {
 		val out = sanitize("Recheck deferred: another check is running\nerror loading Another", titles = listOf("Another"))
 		assertEquals("Recheck deferred: another check is running\nerror loading title#1", out)
